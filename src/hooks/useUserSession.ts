@@ -35,11 +35,15 @@ export function useUserSession() {
   }, []);
 
   const loadProfile = async (userId: string) => {
-    const { data } = await supabase
+    console.log('[useUserSession] loadProfile for:', userId);
+
+    const { data, error: selectError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
+
+    console.log('[useUserSession] profile query:', data ? 'found' : 'not found', selectError?.message);
 
     if (data) {
       setProfile({
@@ -48,7 +52,29 @@ export function useUserSession() {
         color: data.color,
         avatar: data.avatar,
       });
+      setIsLoading(false);
+      return;
     }
+
+    // Profile không tồn tại (do reset DB hoặc lần đầu) → tự tạo mới
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const name = authUser?.user_metadata?.name || 'User';
+    const avatar = authUser?.user_metadata?.avatar || '😎';
+    const color = authUser?.user_metadata?.color || '#6366f1';
+
+    console.log('[useUserSession] Creating new profile:', { name, avatar, color });
+
+    const { error: insertError } = await supabase.from('profiles').insert({
+      id: userId,
+      name,
+      avatar,
+      color,
+    });
+
+    console.log('[useUserSession] Insert result:', insertError ? insertError.message : 'success');
+
+    // LUÔN set profile, kể cả khi insert lỗi (để app không bị trắng)
+    setProfile({ id: userId, name, color, avatar });
     setIsLoading(false);
   };
 

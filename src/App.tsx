@@ -332,6 +332,16 @@ function App() {
     return <LoginScreen onSignup={handleSignup} onLogin={handleLogin} />;
   }
 
+  // ── Wait for profile to be ready ──
+  if (!profile) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+        <p>Đang tải hồ sơ...</p>
+      </div>
+    );
+  }
+
   // ── Projects Screen ──
   if (screen === 'projects') {
     return (
