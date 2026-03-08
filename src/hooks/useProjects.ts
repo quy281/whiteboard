@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Project, Board, BoardData, Shape, NoteShape, ChecklistShape, Bookmark, Viewport } from '../types';
+import type { Project, Board, BoardData, Shape, NoteShape, ChecklistShape, BudgetShape, Bookmark, Viewport } from '../types';
 import { supabase } from '../supabaseClient';
 import { generateId } from '../utils';
 
@@ -51,6 +51,7 @@ export function useProjects(userId?: string) {
           projectId: b.project_id as string,
           name: b.name as string,
           roomId: b.room_id as string,
+          password: (b.password as string) || undefined,
           createdAt: b.created_at as number,
           updatedAt: b.updated_at as number,
         }));
@@ -123,12 +124,13 @@ export function useProjects(userId?: string) {
   }, [userId]);
 
   // ── Board CRUD ──
-  const createBoard = useCallback(async (projectId: string, name: string) => {
+  const createBoard = useCallback(async (projectId: string, name: string, customRoomId?: string, password?: string) => {
     const board: Board = {
       id: generateId(),
       projectId,
       name,
-      roomId: 'room-' + generateId(),
+      roomId: customRoomId?.trim() || ('room-' + generateId()),
+      password: password?.trim() || undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -145,6 +147,7 @@ export function useProjects(userId?: string) {
         user_id: userId,
         name: board.name,
         room_id: board.roomId,
+        password: board.password || null,
         created_at: board.createdAt,
         updated_at: board.updatedAt,
       });
@@ -153,7 +156,7 @@ export function useProjects(userId?: string) {
       await supabase.from('board_data').insert({
         board_id: board.id,
         user_id: userId,
-        data: { shapes: [], notes: [], checklists: [], bookmarks: [], viewport: { x: 0, y: 0, zoom: 1 } },
+        data: { shapes: [], notes: [], checklists: [], budgets: [], bookmarks: [], viewport: { x: 0, y: 0, zoom: 1 } },
         updated_at: Date.now(),
       });
     }
@@ -190,7 +193,7 @@ export function useProjects(userId?: string) {
   // ── Board Data ──
   const loadBoardData = useCallback(async (boardId: string): Promise<BoardData> => {
     const empty: BoardData = {
-      shapes: [], notes: [], checklists: [], bookmarks: [],
+      shapes: [], notes: [], checklists: [], budgets: [], bookmarks: [],
       viewport: { x: 0, y: 0, zoom: 1 },
     };
 
@@ -208,6 +211,7 @@ export function useProjects(userId?: string) {
         shapes: (d.shapes as Shape[]) || [],
         notes: (d.notes as NoteShape[]) || [],
         checklists: (d.checklists as ChecklistShape[]) || [],
+        budgets: (d.budgets as BudgetShape[]) || [],
         bookmarks: (d.bookmarks as Bookmark[]) || [],
         viewport: (d.viewport as Viewport) || { x: 0, y: 0, zoom: 1 },
       };
@@ -224,6 +228,7 @@ export function useProjects(userId?: string) {
       shapes: Shape[];
       notes: NoteShape[];
       checklists: ChecklistShape[];
+      budgets: BudgetShape[];
       bookmarks: Bookmark[];
       viewport: Viewport;
     }
@@ -254,6 +259,12 @@ export function useProjects(userId?: string) {
     return boards.find((b) => b.id === boardId) ?? null;
   }, [boards]);
 
+  const getRecentBoards = useCallback((limit = 5) => {
+    return [...boards]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, limit);
+  }, [boards]);
+
   return {
     projects,
     boards,
@@ -268,5 +279,6 @@ export function useProjects(userId?: string) {
     saveBoardData,
     getBoardsForProject,
     getBoardById,
+    getRecentBoards,
   };
 }

@@ -93,6 +93,11 @@ const PinsPanel: React.FC<PinsPanelProps> = ({
                   {Math.round(-bm.x / bm.zoom)}, {Math.round(-bm.y / bm.zoom)}
                 </span>
                 <button
+                  className="pin-rename-btn"
+                  onClick={() => startRename(bm)}
+                  title="Đổi tên"
+                >✏️</button>
+                <button
                   className="pin-remove"
                   onClick={() => onRemove(bm.id)}
                   title="Delete pin"

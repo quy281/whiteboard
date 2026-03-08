@@ -39,6 +39,8 @@ const ChecklistCard: React.FC<{
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(checklist.title);
   const [newItemText, setNewItemText] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemText, setEditItemText] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ ox: number; oy: number } | null>(null);
 
@@ -89,6 +91,21 @@ const ChecklistCard: React.FC<{
     const item: ChecklistItem = { id: generateId(), text: newItemText.trim(), checked: false };
     onUpdate({ ...checklist, items: [...checklist.items, item] });
     setNewItemText('');
+  };
+
+  const startEditItem = (item: ChecklistItem) => {
+    setEditingItemId(item.id);
+    setEditItemText(item.text);
+  };
+
+  const saveEditItem = (itemId: string) => {
+    if (editItemText.trim()) {
+      const items = checklist.items.map((it) =>
+        it.id === itemId ? { ...it, text: editItemText.trim() } : it
+      );
+      onUpdate({ ...checklist, items });
+    }
+    setEditingItemId(null);
   };
 
   const saveTitle = () => {
@@ -146,7 +163,25 @@ const ChecklistCard: React.FC<{
               checked={item.checked}
               onChange={() => toggleItem(item.id)}
             />
-            <span className="cl-item-text">{item.text}</span>
+            {editingItemId === item.id ? (
+              <input
+                className="cl-edit-input cl-interactive"
+                value={editItemText}
+                onChange={(e) => setEditItemText(e.target.value)}
+                onBlur={() => saveEditItem(item.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveEditItem(item.id); }}
+                autoFocus
+              />
+            ) : (
+              <span
+                className="cl-item-text cl-interactive"
+                onClick={() => startEditItem(item)}
+                title="Click để sửa"
+                style={{ cursor: 'text' }}
+              >
+                {item.text}
+              </span>
+            )}
             <button
               className="cl-item-remove cl-interactive"
               onClick={() => removeItem(item.id)}

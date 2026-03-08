@@ -8,6 +8,7 @@ export type Tool =
   | 'text'
   | 'note'
   | 'checklist'
+  | 'budget'
   | 'select'
   | 'pan';
 
@@ -75,7 +76,8 @@ export type Shape =
   | TextShape
   | EraserStroke
   | NoteShape
-  | ChecklistShape;
+  | ChecklistShape
+  | BudgetShape;
 
 // ── Note ────────────────────────────────────────────────────
 export interface NoteShape {
@@ -103,6 +105,24 @@ export interface ChecklistShape {
   width: number;
   title: string;
   items: ChecklistItem[];
+  bgColor: string;
+}
+
+// ── Budget ──────────────────────────────────────────────────
+export interface BudgetItem {
+  id: string;
+  label: string;
+  amount: number;
+}
+
+export interface BudgetShape {
+  type: 'budget';
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  title: string;
+  items: BudgetItem[];
   bgColor: string;
 }
 
@@ -177,6 +197,7 @@ export interface Board {
   projectId: string;
   name: string;
   roomId: string;
+  password?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -185,6 +206,7 @@ export interface BoardData {
   shapes: Shape[];
   notes: NoteShape[];
   checklists: ChecklistShape[];
+  budgets: BudgetShape[];
   bookmarks: Bookmark[];
   viewport: Viewport;
 }

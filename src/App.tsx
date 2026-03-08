@@ -4,16 +4,19 @@ import Toolbar from './components/Toolbar';
 import StatusBar from './components/StatusBar';
 import NoteOverlay from './components/NoteOverlay';
 import ChecklistOverlay from './components/ChecklistOverlay';
+import BudgetOverlay from './components/BudgetOverlay';
 import PinsPanel from './components/PinsPanel';
 import LoginScreen from './components/LoginScreen';
 import ProjectsScreen from './components/ProjectsScreen';
 import ProfileModal from './components/ProfileModal';
 import ShareModal from './components/ShareModal';
+import NotificationPanel from './components/NotificationPanel';
 import { useHistory } from './hooks/useHistory';
 import { useCollaboration } from './hooks/useCollaboration';
 import { useUserSession } from './hooks/useUserSession';
 import { useProjects } from './hooks/useProjects';
-import type { Shape, Tool, Viewport, NoteShape, ChecklistShape, Bookmark, AppScreen, Board } from './types';
+import { useNotifications } from './hooks/useNotifications';
+import type { Shape, Tool, Viewport, NoteShape, ChecklistShape, BudgetShape, Bookmark, AppScreen, Board } from './types';
 import { generateId, screenToWorld } from './utils';
 import { NOTE_COLORS } from './components/NoteOverlay';
 import './index.css';
@@ -28,6 +31,20 @@ function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [shareProject, setShareProject] = useState<{ id: string; name: string } | null>(null);
   const [showRoomShare, setShowRoomShare] = useState(false);
+
+  // ── Password modal ──
+  const [passwordPrompt, setPasswordPrompt] = useState<{ board: Board; input: string } | null>(null);
+
+  // ── Notifications ──
+  const {
+    notifications,
+    unreadCount,
+    acceptInvite,
+    declineInvite,
+    markAsRead,
+    clearRead,
+    reload: reloadNotifications,
+  } = useNotifications(user?.id);
 
   // Set initial screen based on auth state
   useEffect(() => {
@@ -50,6 +67,7 @@ function App() {
     loadBoardData,
     saveBoardData,
     getBoardsForProject,
+    getRecentBoards,
   } = useProjects(user?.id);
 
   // ── Whiteboard State ──
@@ -60,6 +78,7 @@ function App() {
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [notes, setNotes] = useState<NoteShape[]>([]);
   const [checklists, setChecklists] = useState<ChecklistShape[]>([]);
+  const [budgets, setBudgets] = useState<BudgetShape[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
 
   const shapesRef = useRef(shapes);
@@ -98,36 +117,61 @@ function App() {
   useEffect(() => {
     if (!activeBoardRef.current) return;
     saveBoardData(activeBoardRef.current.id, {
-      shapes, notes, checklists, bookmarks, viewport,
+      shapes, notes, checklists, budgets, bookmarks, viewport,
     });
-  }, [shapes, notes, checklists, bookmarks, viewport, saveBoardData]);
+  }, [shapes, notes, checklists, budgets, bookmarks, viewport, saveBoardData]);
 
   // ── Board open/close ──
   const handleOpenBoard = useCallback(async (board: Board) => {
+    // Check password
+    if (board.password) {
+      setPasswordPrompt({ board, input: '' });
+      return;
+    }
     const data = await loadBoardData(board.id);
     setShapes(data.shapes);
     setNotes(data.notes);
     setChecklists(data.checklists);
+    setBudgets(data.budgets || []);
     setBookmarks(data.bookmarks);
     setViewport(data.viewport);
     setActiveBoard(board);
     setScreen('board');
   }, [loadBoardData]);
 
+  const handlePasswordSubmit = useCallback(async () => {
+    if (!passwordPrompt) return;
+    if (passwordPrompt.input === passwordPrompt.board.password) {
+      const data = await loadBoardData(passwordPrompt.board.id);
+      setShapes(data.shapes);
+      setNotes(data.notes);
+      setChecklists(data.checklists);
+      setBudgets(data.budgets || []);
+      setBookmarks(data.bookmarks);
+      setViewport(data.viewport);
+      setActiveBoard(passwordPrompt.board);
+      setScreen('board');
+      setPasswordPrompt(null);
+    } else {
+      alert('Mật khẩu không đúng!');
+    }
+  }, [passwordPrompt, loadBoardData]);
+
   const handleBackToProjects = useCallback(() => {
     if (activeBoard) {
       saveBoardData(activeBoard.id, {
-        shapes, notes, checklists, bookmarks, viewport,
+        shapes, notes, checklists, budgets, bookmarks, viewport,
       });
     }
     setActiveBoard(null);
     setShapes([]);
     setNotes([]);
     setChecklists([]);
+    setBudgets([]);
     setBookmarks([]);
     setViewport({ x: 0, y: 0, zoom: 1 });
     setScreen('projects');
-  }, [activeBoard, shapes, notes, checklists, bookmarks, viewport, saveBoardData]);
+  }, [activeBoard, shapes, notes, checklists, budgets, bookmarks, viewport, saveBoardData]);
 
   const handleJoinRoom = useCallback((roomCode: string) => {
     const board: Board = {
@@ -142,6 +186,7 @@ function App() {
     setShapes([]);
     setNotes([]);
     setChecklists([]);
+    setBudgets([]);
     setBookmarks([]);
     setViewport({ x: 0, y: 0, zoom: 1 });
     setScreen('board');
@@ -185,10 +230,10 @@ function App() {
     setViewport({ x: 0, y: 0, zoom: 1 });
   }, []);
 
-  // ── Canvas click for note/checklist ──
+  // ── Canvas click for note/checklist/budget ──
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (tool !== 'note' && tool !== 'checklist') return;
+      if (tool !== 'note' && tool !== 'checklist' && tool !== 'budget') return;
 
       const rect = e.currentTarget.getBoundingClientRect();
       const sx = e.clientX - rect.left;
@@ -221,6 +266,19 @@ function App() {
         };
         setChecklists((prev) => [...prev, cl]);
         setTool('pen');
+      } else if (tool === 'budget') {
+        const bg: BudgetShape = {
+          type: 'budget',
+          id: generateId(),
+          x: world.x,
+          y: world.y,
+          width: 320,
+          title: 'Ngân sách',
+          items: [],
+          bgColor: '#fff8e1',
+        };
+        setBudgets((prev) => [...prev, bg]);
+        setTool('pen');
       }
     },
     [tool, viewport]
@@ -240,6 +298,14 @@ function App() {
 
   const handleChecklistDelete = useCallback((id: string) => {
     setChecklists((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const handleBudgetUpdate = useCallback((bg: BudgetShape) => {
+    setBudgets((prev) => prev.map((b) => (b.id === bg.id ? bg : b)));
+  }, []);
+
+  const handleBudgetDelete = useCallback((id: string) => {
+    setBudgets((prev) => prev.filter((b) => b.id !== id));
   }, []);
 
   const handleBookmarkAdd = useCallback((bm: Bookmark) => {
@@ -279,6 +345,7 @@ function App() {
         case 't': setTool('text'); break;
         case 'n': setTool('note'); break;
         case 'c': setTool('checklist'); break;
+        case 'b': setTool('budget'); break;
         case 'x': setTool('eraser'); break;
         case 'h': handleGoHome(); break;
         case ' ': setTool('pan'); e.preventDefault(); break;
@@ -342,6 +409,16 @@ function App() {
     );
   }
 
+  // Shared notification panel props
+  const notifProps = {
+    notifications,
+    unreadCount,
+    onAcceptInvite: async (id: string) => { await acceptInvite(id); reloadNotifications(); },
+    onDeclineInvite: async (id: string) => { await declineInvite(id); },
+    onMarkAsRead: markAsRead,
+    onClearRead: clearRead,
+  };
+
   // ── Projects Screen ──
   if (screen === 'projects') {
     return (
@@ -356,6 +433,7 @@ function App() {
             profile={profile!}
             projects={projects}
             boards={boards}
+            recentBoards={getRecentBoards(5)}
             onCreateProject={createProject}
             onDeleteProject={deleteProject}
             onUpdateProject={updateProject}
@@ -367,6 +445,7 @@ function App() {
             onOpenProfile={() => setShowProfile(true)}
             onShareProject={(id, name) => setShareProject({ id, name })}
             getBoardsForProject={getBoardsForProject}
+            notificationPanel={<NotificationPanel {...notifProps} />}
           />
         )}
         {showProfile && profile && (
@@ -385,6 +464,33 @@ function App() {
             projectName={shareProject.name}
             onClose={() => setShareProject(null)}
           />
+        )}
+        {/* Password prompt modal */}
+        {passwordPrompt && (
+          <div className="modal-overlay" onClick={() => setPasswordPrompt(null)}>
+            <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2 className="modal-title">🔒 Nhập mật khẩu</h2>
+                <button className="modal-close" onClick={() => setPasswordPrompt(null)}>✕</button>
+              </div>
+              <div className="modal-body">
+                <p style={{ marginBottom: 12, opacity: 0.7 }}>Bảng "{passwordPrompt.board.name}" yêu cầu mật khẩu</p>
+                <input
+                  className="login-input"
+                  type="password"
+                  placeholder="Nhập mật khẩu..."
+                  value={passwordPrompt.input}
+                  onChange={(e) => setPasswordPrompt({ ...passwordPrompt, input: e.target.value })}
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+                />
+              </div>
+              <div className="modal-footer">
+                <button className="btn-secondary" onClick={() => setPasswordPrompt(null)}>Huỷ</button>
+                <button className="btn-primary-sm" onClick={handlePasswordSubmit}>Mở</button>
+              </div>
+            </div>
+          </div>
         )}
       </>
     );
@@ -413,6 +519,7 @@ function App() {
           position="top"
         />
         <div className="toolbar-spacer" />
+        <NotificationPanel {...notifProps} />
         <button
           className="projects-profile-btn-sm"
           onClick={() => setShowProfile(true)}
@@ -426,7 +533,7 @@ function App() {
       <div
         className="canvas-container"
         onClick={handleCanvasClick}
-        style={{ cursor: tool === 'note' || tool === 'checklist' ? 'copy' : undefined }}
+        style={{ cursor: tool === 'note' || tool === 'checklist' || tool === 'budget' ? 'copy' : undefined }}
       >
         <Canvas
           shapes={shapes}
@@ -454,10 +561,16 @@ function App() {
           onUpdate={handleChecklistUpdate}
           onDelete={handleChecklistDelete}
         />
+        <BudgetOverlay
+          budgets={budgets}
+          viewport={viewport}
+          onUpdate={handleBudgetUpdate}
+          onDelete={handleBudgetDelete}
+        />
 
-        {(tool === 'note' || tool === 'checklist') && (
+        {(tool === 'note' || tool === 'checklist' || tool === 'budget') && (
           <div className="placement-hint">
-            Nhấn để đặt {tool === 'note' ? '📝 Ghi chú' : '☑️ Checklist'}
+            Nhấn để đặt {tool === 'note' ? '📝 Ghi chú' : tool === 'checklist' ? '☑️ Checklist' : '💰 Ngân sách'}
           </div>
         )}
       </div>

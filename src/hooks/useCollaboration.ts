@@ -31,8 +31,10 @@ export function useCollaboration(
     name: userProfile?.name ?? randomName(),
     color: userProfile?.color ?? randomColor(),
   });
-  const roomIdRef = useRef(roomIdOverride ?? getRoomId());
   const forceUpdateRef = useRef(0);
+
+  // Derive room id — recalculated when roomIdOverride changes
+  const roomId = roomIdOverride ?? getRoomId();
 
   // Force re-render helper
   const setForceUpdate = useCallback(() => {
@@ -41,7 +43,6 @@ export function useCollaboration(
 
   useEffect(() => {
     const doc = new Y.Doc();
-    const roomId = roomIdRef.current;
 
     const provider = new WebrtcProvider(roomId, doc, {
       signaling: ['wss://signaling.yjs.dev'],
@@ -105,7 +106,7 @@ export function useCollaboration(
       provider.destroy();
       doc.destroy();
     };
-  }, [onShapesChange, setForceUpdate]);
+  }, [roomId, onShapesChange, setForceUpdate]);
 
   return {
     shapesArray: shapesArrayRef.current,
@@ -113,7 +114,7 @@ export function useCollaboration(
     cursors: cursorsRef.current,
     users: [...usersRef.current, localUserRef.current],
     localUser: localUserRef.current,
-    roomId: roomIdRef.current,
+    roomId,
     isConnected: connectedRef.current,
   };
 }

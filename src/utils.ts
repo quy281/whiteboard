@@ -22,8 +22,8 @@ export function worldToScreen(wx: number, wy: number, vp: Viewport): Point {
 
 /** Draw a single shape on the canvas context */
 export function drawShape(ctx: CanvasRenderingContext2D, shape: Shape, vp: Viewport) {
-  // Notes and checklists are rendered as HTML overlays, not on canvas
-  if (shape.type === 'note' || shape.type === 'checklist') return;
+  // Notes, checklists, and budgets are rendered as HTML overlays, not on canvas
+  if (shape.type === 'note' || shape.type === 'checklist' || shape.type === 'budget') return;
 
   ctx.save();
   ctx.translate(vp.x, vp.y);

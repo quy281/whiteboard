@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import type { Project, Board, UserProfile } from '../types';
 
 interface ProjectsScreenProps {
   profile: UserProfile;
   projects: Project[];
   boards: Board[];
+  recentBoards: Board[];
   onCreateProject: (name: string, description?: string) => Promise<Project>;
   onDeleteProject: (id: string) => Promise<void>;
   onUpdateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'description'>>) => Promise<void>;
-  onCreateBoard: (projectId: string, name: string) => Promise<Board>;
+  onCreateBoard: (projectId: string, name: string, customRoomId?: string, password?: string) => Promise<Board>;
   onDeleteBoard: (id: string) => Promise<void>;
   onRenameBoard: (id: string, name: string) => Promise<void>;
   onOpenBoard: (board: Board) => void;
@@ -16,6 +17,7 @@ interface ProjectsScreenProps {
   onOpenProfile: () => void;
   onShareProject: (projectId: string, projectName: string) => void;
   getBoardsForProject: (projectId: string) => Board[];
+  notificationPanel?: ReactNode;
 }
 
 const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
@@ -32,12 +34,16 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
   onOpenProfile,
   onShareProject,
   getBoardsForProject,
+  recentBoards,
+  notificationPanel,
 }) => {
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardRoomId, setNewBoardRoomId] = useState('');
+  const [newBoardPassword, setNewBoardPassword] = useState('');
   const [addingBoardFor, setAddingBoardFor] = useState<string | null>(null);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [roomCode, setRoomCode] = useState('');
@@ -58,8 +64,10 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
 
   const handleCreateBoard = async (projectId: string) => {
     if (newBoardName.trim()) {
-      await onCreateBoard(projectId, newBoardName.trim());
+      await onCreateBoard(projectId, newBoardName.trim(), newBoardRoomId.trim() || undefined, newBoardPassword.trim() || undefined);
       setNewBoardName('');
+      setNewBoardRoomId('');
+      setNewBoardPassword('');
       setAddingBoardFor(null);
     }
   };
@@ -89,6 +97,7 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
           <button className="projects-join-btn" onClick={() => setShowJoinRoom(true)}>
             🔗 Tham gia phòng
           </button>
+          {notificationPanel}
           <button className="projects-profile-btn" onClick={onOpenProfile} style={{ background: profile.color }}>
             <span>{profile.avatar}</span>
           </button>
@@ -97,6 +106,27 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
 
       {/* Content */}
       <main className="projects-content">
+        {/* Recent boards section */}
+        {recentBoards.length > 0 && (
+          <div className="recent-boards-section">
+            <h2 className="projects-section-title">⏰ Bảng vẽ gần đây</h2>
+            <div className="recent-boards-row">
+              {recentBoards.map((board) => (
+                <button
+                  key={board.id}
+                  className="recent-board-chip"
+                  onClick={() => onOpenBoard(board)}
+                  title={`Mở ${board.name}`}
+                >
+                  <span className="recent-board-icon">📋</span>
+                  <span className="recent-board-name">{board.name}</span>
+                  <span className="recent-board-date">{formatDate(board.updatedAt)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="projects-actions">
           <h2 className="projects-section-title">Dự án của tôi</h2>
           <button className="btn-primary-sm" onClick={() => setShowNewProject(true)}>
@@ -229,6 +259,7 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
                             {board.name}
                           </button>
                         )}
+                        {board.password && <span className="board-lock-icon" title="Có mật khẩu">🔒</span>}
                         <span className="board-item-date">{formatDate(board.updatedAt)}</span>
                         <button
                           className="icon-btn-sm"
@@ -257,6 +288,19 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
                             if (e.key === 'Escape') setAddingBoardFor(null);
                           }}
                         />
+                        <input
+                          className="login-input login-input-sm"
+                          placeholder="Mã phòng (tuỳ chọn)..."
+                          value={newBoardRoomId}
+                          onChange={(e) => setNewBoardRoomId(e.target.value)}
+                        />
+                        <input
+                          className="login-input login-input-sm"
+                          placeholder="Mật khẩu (tuỳ chọn)..."
+                          type="password"
+                          value={newBoardPassword}
+                          onChange={(e) => setNewBoardPassword(e.target.value)}
+                        />
                         <button className="btn-primary-xs" onClick={() => handleCreateBoard(project.id)}>
                           +
                         </button>
@@ -264,7 +308,7 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
                     ) : (
                       <button
                         className="board-add-btn"
-                        onClick={() => { setAddingBoardFor(project.id); setNewBoardName(''); }}
+                        onClick={() => { setAddingBoardFor(project.id); setNewBoardName(''); setNewBoardRoomId(''); setNewBoardPassword(''); }}
                       >
                         + Thêm bảng vẽ
                       </button>

@@ -24,6 +24,7 @@ const TOOLS: { key: Tool; icon: string; label: string }[] = [
   { key: 'text', icon: 'T', label: 'Text' },
   { key: 'note', icon: '📝', label: 'Note' },
   { key: 'checklist', icon: '☑️', label: 'List' },
+  { key: 'budget', icon: '💰', label: 'Budget' },
   { key: 'eraser', icon: '🧹', label: 'Eraser' },
   { key: 'pan', icon: '🤚', label: 'Pan' },
 ];
