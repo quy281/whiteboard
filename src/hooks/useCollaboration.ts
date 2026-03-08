@@ -16,7 +16,9 @@ interface CollaborationReturn {
 }
 
 export function useCollaboration(
-  onShapesChange: (shapes: Shape[]) => void
+  onShapesChange: (shapes: Shape[]) => void,
+  userProfile?: { id: string; name: string; color: string } | null,
+  roomIdOverride?: string,
 ): CollaborationReturn {
   const docRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebrtcProvider | null>(null);
@@ -25,11 +27,11 @@ export function useCollaboration(
   const usersRef = useRef<UserInfo[]>([]);
   const connectedRef = useRef(false);
   const localUserRef = useRef<UserInfo>({
-    id: Math.random().toString(36).slice(2),
-    name: randomName(),
-    color: randomColor(),
+    id: userProfile?.id ?? Math.random().toString(36).slice(2),
+    name: userProfile?.name ?? randomName(),
+    color: userProfile?.color ?? randomColor(),
   });
-  const roomIdRef = useRef(getRoomId());
+  const roomIdRef = useRef(roomIdOverride ?? getRoomId());
   const forceUpdateRef = useRef(0);
 
   // Force re-render helper

@@ -147,3 +147,46 @@ export interface AppState {
   selectedIds: string[];
   bookmarks: Bookmark[];
 }
+
+// ── User Profile & Session ──────────────────────────────────
+export interface UserProfile {
+  id: string;
+  name: string;
+  color: string;
+  avatar: string; // emoji
+}
+
+export interface UserSession {
+  profile: UserProfile;
+  expiresAt: number;
+}
+
+// ── Projects & Boards ───────────────────────────────────────
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+  boardIds: string[];
+}
+
+export interface Board {
+  id: string;
+  projectId: string;
+  name: string;
+  roomId: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface BoardData {
+  shapes: Shape[];
+  notes: NoteShape[];
+  checklists: ChecklistShape[];
+  bookmarks: Bookmark[];
+  viewport: Viewport;
+}
+
+export type AppScreen = 'login' | 'projects' | 'board';

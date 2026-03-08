@@ -50,19 +50,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   if (position === 'top') {
     return (
-      <div className="toolbar toolbar-top">
-        <div className="toolbar-section tools-row">
-          {TOOLS.map((t) => (
-            <button
-              key={t.key}
-              className={`tool-btn tool-btn-compact ${tool === t.key ? 'active' : ''}`}
-              onClick={() => onToolChange(t.key)}
-              title={t.label}
-            >
-              <span className="tool-icon">{t.icon}</span>
-            </button>
-          ))}
-        </div>
+      <div className="toolbar-section tools-row">
+        {TOOLS.map((t) => (
+          <button
+            key={t.key}
+            className={`tool-btn tool-btn-compact ${tool === t.key ? 'active' : ''}`}
+            onClick={() => onToolChange(t.key)}
+            title={t.label}
+          >
+            <span className="tool-icon">{t.icon}</span>
+          </button>
+        ))}
       </div>
     );
   }

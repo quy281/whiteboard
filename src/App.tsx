@@ -5,43 +5,58 @@ import StatusBar from './components/StatusBar';
 import NoteOverlay from './components/NoteOverlay';
 import ChecklistOverlay from './components/ChecklistOverlay';
 import PinsPanel from './components/PinsPanel';
+import LoginScreen from './components/LoginScreen';
+import ProjectsScreen from './components/ProjectsScreen';
+import ProfileModal from './components/ProfileModal';
 import { useHistory } from './hooks/useHistory';
 import { useCollaboration } from './hooks/useCollaboration';
-import type { Shape, Tool, Viewport, NoteShape, ChecklistShape, Bookmark } from './types';
+import { useUserSession } from './hooks/useUserSession';
+import { useProjects } from './hooks/useProjects';
+import type { Shape, Tool, Viewport, NoteShape, ChecklistShape, Bookmark, AppScreen, Board } from './types';
 import { generateId, screenToWorld } from './utils';
 import { NOTE_COLORS } from './components/NoteOverlay';
 import './index.css';
 
 function App() {
+  // ── Session & Profile ──
+  const { profile, isLoggedIn, login, updateProfile, logout } = useUserSession();
+
+  // ── Screen routing ──
+  const [screen, setScreen] = useState<AppScreen>(() => (isLoggedIn ? 'projects' : 'login'));
+  const [activeBoard, setActiveBoard] = useState<Board | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+
+  // ── Projects ──
+  const {
+    projects,
+    boards,
+    createProject,
+    updateProject,
+    deleteProject,
+    createBoard,
+    deleteBoard,
+    renameBoard,
+    loadBoardData,
+    saveBoardData,
+    getBoardsForProject,
+  } = useProjects();
+
+  // ── Whiteboard State ──
   const [tool, setTool] = useState<Tool>('pen');
   const [color, setColor] = useState('#1e293b');
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
-
-  // Notes & Checklists (stored separately from canvas shapes)
   const [notes, setNotes] = useState<NoteShape[]>([]);
   const [checklists, setChecklists] = useState<ChecklistShape[]>([]);
-
-  // Bookmarks
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
-    try {
-      const saved = localStorage.getItem('wb-bookmarks');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  // Save bookmarks to localStorage
-  useEffect(() => {
-    localStorage.setItem('wb-bookmarks', JSON.stringify(bookmarks));
-  }, [bookmarks]);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
 
   const shapesRef = useRef(shapes);
   shapesRef.current = shapes;
 
   const { pushToHistory, undo, redo, canUndo, canRedo } = useHistory(shapes, setShapes);
 
-  // Collaboration
+  // ── Collaboration ──
   const handleShapesChange = useCallback((newShapes: Shape[]) => {
     setShapes(newShapes);
   }, []);
@@ -51,10 +66,14 @@ function App() {
     awareness,
     cursors,
     users,
-    localUser,
+
     roomId,
     isConnected,
-  } = useCollaboration(handleShapesChange);
+  } = useCollaboration(
+    handleShapesChange,
+    profile,
+    activeBoard?.roomId
+  );
 
   useEffect(() => {
     if (shapesArray && shapesArray.length > 0 && shapes.length === 0) {
@@ -62,6 +81,65 @@ function App() {
     }
   }, [shapesArray, shapes.length]);
 
+  // ── Auto-save board data ──
+  const activeBoardRef = useRef(activeBoard);
+  activeBoardRef.current = activeBoard;
+
+  useEffect(() => {
+    if (!activeBoardRef.current) return;
+    saveBoardData(activeBoardRef.current.id, {
+      shapes, notes, checklists, bookmarks, viewport,
+    });
+  }, [shapes, notes, checklists, bookmarks, viewport, saveBoardData]);
+
+  // ── Board open/close ──
+  const handleOpenBoard = useCallback((board: Board) => {
+    const data = loadBoardData(board.id);
+    setShapes(data.shapes);
+    setNotes(data.notes);
+    setChecklists(data.checklists);
+    setBookmarks(data.bookmarks);
+    setViewport(data.viewport);
+    setActiveBoard(board);
+    setScreen('board');
+  }, [loadBoardData]);
+
+  const handleBackToProjects = useCallback(() => {
+    // Save current board before leaving
+    if (activeBoard) {
+      saveBoardData(activeBoard.id, {
+        shapes, notes, checklists, bookmarks, viewport,
+      });
+    }
+    setActiveBoard(null);
+    setShapes([]);
+    setNotes([]);
+    setChecklists([]);
+    setBookmarks([]);
+    setViewport({ x: 0, y: 0, zoom: 1 });
+    setScreen('projects');
+  }, [activeBoard, shapes, notes, checklists, bookmarks, viewport, saveBoardData]);
+
+  const handleJoinRoom = useCallback((roomCode: string) => {
+    // Create a temporary board for the joined room
+    const board: Board = {
+      id: generateId(),
+      projectId: '',
+      name: 'Phòng: ' + roomCode.slice(0, 12),
+      roomId: roomCode,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setActiveBoard(board);
+    setShapes([]);
+    setNotes([]);
+    setChecklists([]);
+    setBookmarks([]);
+    setViewport({ x: 0, y: 0, zoom: 1 });
+    setScreen('board');
+  }, []);
+
+  // ── Shape handlers ──
   const handleShapeAdd = useCallback(
     (shape: Shape) => {
       pushToHistory();
@@ -99,7 +177,7 @@ function App() {
     setViewport({ x: 0, y: 0, zoom: 1 });
   }, []);
 
-  // ── Canvas click for note/checklist placement ──────────────
+  // ── Canvas click for note/checklist placement ──
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (tool !== 'note' && tool !== 'checklist') return;
@@ -174,10 +252,11 @@ function App() {
     setViewport({ x: bm.x, y: bm.y, zoom: bm.zoom });
   }, []);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (only in board view)
   useEffect(() => {
+    if (screen !== 'board') return;
+
     const handleKey = (e: KeyboardEvent) => {
-      // Ignore shortcuts when editing text
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
@@ -197,6 +276,7 @@ function App() {
         case 'x': setTool('eraser'); break;
         case 'h': handleGoHome(); break;
         case ' ': setTool('pan'); e.preventDefault(); break;
+        case 'Escape': handleBackToProjects(); break;
       }
     };
 
@@ -210,25 +290,95 @@ function App() {
       window.removeEventListener('keydown', handleKey);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [undo, redo, handleGoHome]);
+  }, [screen, undo, redo, handleGoHome, handleBackToProjects]);
 
+  // ── Login handler ──
+  const handleLogin = useCallback((name: string, userColor: string, avatar: string) => {
+    login(name, userColor, avatar);
+    setScreen('projects');
+  }, [login]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    setScreen('login');
+    setShowProfile(false);
+  }, [logout]);
+
+  // ══════════════════════════════════════════════════════════
+  //  RENDER
+  // ══════════════════════════════════════════════════════════
+
+  // ── Login Screen ──
+  if (screen === 'login' || !isLoggedIn) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  // ── Projects Screen ──
+  if (screen === 'projects') {
+    return (
+      <>
+        <ProjectsScreen
+          profile={profile!}
+          projects={projects}
+          boards={boards}
+          onCreateProject={createProject}
+          onDeleteProject={deleteProject}
+          onUpdateProject={updateProject}
+          onCreateBoard={createBoard}
+          onDeleteBoard={deleteBoard}
+          onRenameBoard={renameBoard}
+          onOpenBoard={handleOpenBoard}
+          onJoinRoom={handleJoinRoom}
+          onOpenProfile={() => setShowProfile(true)}
+          getBoardsForProject={getBoardsForProject}
+        />
+        {showProfile && profile && (
+          <ProfileModal
+            name={profile.name}
+            color={profile.color}
+            avatar={profile.avatar}
+            onSave={updateProfile}
+            onLogout={handleLogout}
+            onClose={() => setShowProfile(false)}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── Board View ──
   return (
     <div className="app">
-      {/* Top bar: tools only */}
-      <Toolbar
-        tool={tool}
-        onToolChange={setTool}
-        color={color}
-        onColorChange={setColor}
-        strokeWidth={strokeWidth}
-        onStrokeWidthChange={setStrokeWidth}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onClear={handleClear}
-        position="top"
-      />
+      {/* Top bar: tools + back button */}
+      <div className="toolbar toolbar-top">
+        <button className="tool-btn tool-btn-compact" onClick={handleBackToProjects} title="Quay lại">
+          ◀
+        </button>
+        <div className="toolbar-divider toolbar-divider-compact" />
+        <Toolbar
+          tool={tool}
+          onToolChange={setTool}
+          color={color}
+          onColorChange={setColor}
+          strokeWidth={strokeWidth}
+          onStrokeWidthChange={setStrokeWidth}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onClear={handleClear}
+          position="top"
+        />
+        <div className="toolbar-spacer" />
+        <button
+          className="projects-profile-btn-sm"
+          onClick={() => setShowProfile(true)}
+          style={{ background: profile?.color }}
+          title="Hồ sơ"
+        >
+          {profile?.avatar}
+        </button>
+      </div>
 
       <div
         className="canvas-container"
@@ -249,7 +399,6 @@ function App() {
           cursors={cursors}
         />
 
-        {/* Note & Checklist overlays on top of canvas */}
         <NoteOverlay
           notes={notes}
           viewport={viewport}
@@ -263,10 +412,9 @@ function App() {
           onDelete={handleChecklistDelete}
         />
 
-        {/* Placement hint */}
         {(tool === 'note' || tool === 'checklist') && (
           <div className="placement-hint">
-            Click anywhere to place a {tool === 'note' ? '📝 Note' : '☑️ Checklist'}
+            Nhấn để đặt {tool === 'note' ? '📝 Ghi chú' : '☑️ Checklist'}
           </div>
         )}
       </div>
@@ -295,7 +443,6 @@ function App() {
         onGoHome={handleGoHome}
       />
 
-      {/* Pins panel - right side */}
       <PinsPanel
         bookmarks={bookmarks}
         viewport={viewport}
@@ -305,12 +452,24 @@ function App() {
         onRename={handleBookmarkRename}
       />
 
-      {/* Welcome toast */}
-      <div className="welcome-toast" key={localUser.id}>
-        <span className="user-dot" style={{ background: localUser.color }} />
-        Welcome, <strong>{localUser.name}</strong>!
-        <span className="shortcut-hint">P/L/R/E/T/N/C/X · Space pan · H home</span>
-      </div>
+      {/* Board name badge */}
+      {activeBoard && (
+        <div className="board-name-badge">
+          📋 {activeBoard.name}
+        </div>
+      )}
+
+      {/* Profile modal */}
+      {showProfile && profile && (
+        <ProfileModal
+          name={profile.name}
+          color={profile.color}
+          avatar={profile.avatar}
+          onSave={updateProfile}
+          onLogout={handleLogout}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
     </div>
   );
 }
