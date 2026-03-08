@@ -53,6 +53,7 @@ const ChecklistCard: React.FC<{
   const screenW = checklist.width * viewport.zoom;
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'BUTTON') return;
     if ((e.target as HTMLElement).closest('.cl-interactive')) return;
     e.stopPropagation();
     dragRef.current = { ox: e.clientX - screenX, oy: e.clientY - screenY };
@@ -141,8 +142,9 @@ const ChecklistCard: React.FC<{
           />
         ) : (
           <span
-            className="cl-title cl-interactive"
+            className="cl-title"
             onDoubleClick={() => setEditingTitle(true)}
+            style={{ cursor: 'grab' }}
           >
             {checklist.title || 'Checklist'}
           </span>

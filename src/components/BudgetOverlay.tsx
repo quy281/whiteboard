@@ -83,6 +83,7 @@ const BudgetCard: React.FC<{
   const screenW = budget.width * viewport.zoom;
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'BUTTON') return;
     if ((e.target as HTMLElement).closest('.bg-interactive')) return;
     e.stopPropagation();
     dragRef.current = { ox: e.clientX - screenX, oy: e.clientY - screenY };
@@ -164,8 +165,9 @@ const BudgetCard: React.FC<{
           />
         ) : (
           <span
-            className="bg-title bg-interactive"
+            className="bg-title"
             onDoubleClick={() => setEditingTitle(true)}
+            style={{ cursor: 'grab' }}
           >
             💰 {budget.title || 'Ngân sách'}
           </span>

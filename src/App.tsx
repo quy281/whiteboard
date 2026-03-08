@@ -104,6 +104,10 @@ function App() {
     activeBoard?.roomId
   );
 
+  // Keep a ref to the Y.js shapes array for sync inside callbacks
+  const shapesArrayRef = useRef(shapesArray);
+  shapesArrayRef.current = shapesArray;
+
   useEffect(() => {
     if (shapesArray && shapesArray.length > 0 && shapes.length === 0) {
       setShapes(shapesArray.toArray());
@@ -137,6 +141,20 @@ function App() {
     setViewport(data.viewport);
     setActiveBoard(board);
     setScreen('board');
+
+    // Sync loaded shapes into Y.js array so observe doesn't wipe them
+    setTimeout(() => {
+      const arr = shapesArrayRef.current;
+      if (arr && data.shapes.length > 0) {
+        const doc = arr.doc;
+        if (doc) {
+          doc.transact(() => {
+            arr.delete(0, arr.length);
+            arr.push(data.shapes);
+          });
+        }
+      }
+    }, 100);
   }, [loadBoardData]);
 
   const handlePasswordSubmit = useCallback(async () => {
@@ -152,6 +170,20 @@ function App() {
       setActiveBoard(passwordPrompt.board);
       setScreen('board');
       setPasswordPrompt(null);
+
+      // Sync loaded shapes into Y.js array
+      setTimeout(() => {
+        const arr = shapesArrayRef.current;
+        if (arr && data.shapes.length > 0) {
+          const doc = arr.doc;
+          if (doc) {
+            doc.transact(() => {
+              arr.delete(0, arr.length);
+              arr.push(data.shapes);
+            });
+          }
+        }
+      }, 100);
     } else {
       alert('Mật khẩu không đúng!');
     }
