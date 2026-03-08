@@ -188,6 +188,52 @@ body,
   transform: scale(1.15);
 }
 
+/* Color popup button for compact variant */
+.color-btn-popup {
+  width: 26px;
+  height: 26px;
+}
+
+/* ── Collapsed Color Picker ─────────────────────────────── */
+.color-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.color-swatch-btn {
+  display: flex; align-items: center; gap: 3px;
+  background: none; border: 1px solid var(--border-color);
+  border-radius: 8px; padding: 4px 8px; cursor: pointer;
+  transition: all 0.15s;
+}
+.color-swatch-btn:hover { background: var(--bg-hover); }
+.color-swatch-circle {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.12);
+  flex-shrink: 0;
+}
+.color-swatch-arrow {
+  font-size: 10px; color: #94a3b8; line-height: 1;
+}
+.color-popup {
+  position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%);
+  background: white; border: 1px solid var(--border-color);
+  border-radius: 12px; padding: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  z-index: 50;
+}
+.color-popup-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+/* ── Back Button ────────────────────────────────────────── */
+.back-btn {
+  font-size: 16px !important;
+  color: var(--accent);
+}
+
 /* ── Stroke Slider ───────────────────────────────────────── */
 .stroke-preview {
   border-radius: 50%;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Tool } from '../types';
 
 interface ToolbarProps {
@@ -13,6 +13,7 @@ interface ToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onClear: () => void;
+  onBack?: () => void;
   position: 'top' | 'bottom';
 }
 
@@ -47,9 +48,26 @@ const Toolbar: React.FC<ToolbarProps> = ({
   canUndo,
   canRedo,
   onClear,
+  onBack,
   position,
 }) => {
+  const [showColors, setShowColors] = useState(false);
+  const colorRef = useRef<HTMLDivElement>(null);
+
+  // Close color popup when clicking outside
+  useEffect(() => {
+    if (!showColors) return;
+    const handleClick = (e: MouseEvent) => {
+      if (colorRef.current && !colorRef.current.contains(e.target as Node)) {
+        setShowColors(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showColors]);
+
   if (position === 'top') {
+    // Top: only drawing tools
     return (
       <div className="toolbar-section tools-row">
         {TOOLS.map((t) => (
@@ -66,20 +84,45 @@ const Toolbar: React.FC<ToolbarProps> = ({
     );
   }
 
-  // position === 'bottom'
+  // position === 'bottom' — back + color picker + stroke + undo/redo/clear
   return (
     <div className="toolbar toolbar-bottom">
-      {/* Colors */}
-      <div className="toolbar-section colors colors-compact">
-        {COLORS.map((c) => (
-          <button
-            key={c}
-            className={`color-btn color-btn-compact ${color === c ? 'active' : ''}`}
-            style={{ '--swatch-color': c } as React.CSSProperties}
-            onClick={() => onColorChange(c)}
-            title={c}
-          />
-        ))}
+      {/* Back button */}
+      {onBack && (
+        <>
+          <button className="tool-btn tool-btn-compact back-btn" onClick={onBack} title="Quay lại">
+            ◀
+          </button>
+          <div className="toolbar-divider toolbar-divider-compact" />
+        </>
+      )}
+
+      {/* Color picker toggle */}
+      <div className="color-picker-wrapper" ref={colorRef}>
+        <button
+          className="color-swatch-btn"
+          onClick={() => setShowColors(!showColors)}
+          title="Chọn màu"
+        >
+          <span className="color-swatch-circle" style={{ background: color }} />
+          <span className="color-swatch-arrow">{showColors ? '▾' : '▴'}</span>
+        </button>
+
+        {showColors && (
+          <div className="color-popup">
+            <div className="color-popup-grid">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  className={`color-btn color-btn-popup ${color === c ? 'active' : ''}`}
+                  style={{ '--swatch-color': c } as React.CSSProperties}
+                  onClick={() => { onColorChange(c); setShowColors(false); }}
+                  title={c}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="toolbar-divider toolbar-divider-compact" />

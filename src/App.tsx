@@ -500,10 +500,6 @@ function App() {
   return (
     <div className="app">
       <div className="toolbar toolbar-top">
-        <button className="tool-btn tool-btn-compact" onClick={handleBackToProjects} title="Quay lại">
-          ◀
-        </button>
-        <div className="toolbar-divider toolbar-divider-compact" />
         <Toolbar
           tool={tool}
           onToolChange={setTool}
@@ -587,6 +583,7 @@ function App() {
         canUndo={canUndo}
         canRedo={canRedo}
         onClear={handleClear}
+        onBack={handleBackToProjects}
         position="bottom"
       />
 
