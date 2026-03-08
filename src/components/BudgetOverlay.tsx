@@ -35,10 +35,27 @@ function formatMoney(n: number): string {
   return n.toLocaleString('vi-VN');
 }
 
+/**
+ * Parse money string with Vietnamese shorthands:
+ *  5k  → 5,000       15k  → 15,000
+ *  5tr → 5,000,000   15tr → 15,000,000
+ */
 function parseMoney(s: string): number {
-  const cleaned = s.replace(/[^0-9.\-]/g, '');
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : num;
+  const trimmed = s.trim().toLowerCase();
+  // Match number followed by optional suffix
+  const match = trimmed.match(/^([0-9]*\.?[0-9]+)\s*(tr|t|k|m)?$/);
+  if (!match) {
+    const cleaned = trimmed.replace(/[^0-9.\-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  }
+  const num = parseFloat(match[1]);
+  if (isNaN(num)) return 0;
+  const suffix = match[2];
+  if (suffix === 'k') return num * 1000;
+  if (suffix === 'tr' || suffix === 't') return num * 1000000;
+  if (suffix === 'm') return num * 1000000;
+  return num;
 }
 
 const BudgetCard: React.FC<{

@@ -522,9 +522,9 @@ body,
 .cl-add-btn:hover { opacity: 0.85; }
 
 /* ── Pins Panel ──────────────────────────────────────────── */
-.pins-panel { position: fixed; top: 56px; right: 0; z-index: 20; }
+.pins-panel { position: fixed; bottom: 50px; left: 0; z-index: 20; }
 .pins-toggle {
-  position: absolute; top: 8px; right: 8px;
+  position: absolute; bottom: 8px; left: 8px;
   background: var(--bg-toolbar); border: 1px solid var(--border-color);
   border-radius: 8px; padding: 6px 10px; cursor: pointer;
   font-size: 13px; color: var(--text-primary);
@@ -532,7 +532,7 @@ body,
 }
 .pins-toggle:hover { background: var(--bg-hover); }
 .pins-content {
-  position: absolute; top: 0; right: 0; width: 240px;
+  position: absolute; bottom: 0; left: 0; width: 240px;
   background: var(--bg-toolbar);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-color); border-radius: 12px;
@@ -709,13 +709,15 @@ body,
   background: white; border-bottom: 1px solid var(--border-color);
 }
 .projects-header-left { display: flex; align-items: center; gap: 8px; }
-.projects-logo { font-size: 24px; }
-.projects-brand { font-size: 18px; font-weight: 700; color: #1e293b; }
-.projects-header-right { display: flex; align-items: center; gap: 8px; }
+.projects-logo { font-size: 24px; line-height: 1; }
+.projects-brand { font-size: 18px; font-weight: 700; color: #1e293b; line-height: 1; }
+.projects-header-right { display: flex; align-items: center; gap: 10px; }
 .projects-join-btn {
   padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border-color);
   background: white; font-size: 13px; cursor: pointer;
   font-weight: 500; transition: all 0.15s; color: var(--text-primary);
+  display: flex; align-items: center; gap: 4px;
+  line-height: 1; white-space: nowrap;
 }
 .projects-join-btn:hover { background: var(--bg-hover); }
 .projects-profile-btn {
@@ -774,14 +776,14 @@ body,
 .icon-btn {
   background: none; border: none; cursor: pointer;
   font-size: 14px; padding: 4px 6px; border-radius: 6px;
-  transition: background 0.15s;
+  transition: background 0.15s; line-height: 1;
 }
 .icon-btn:hover { background: var(--bg-hover); }
 .icon-btn-danger:hover { background: rgba(239,68,68,0.1); }
 .icon-btn-sm {
   background: none; border: none; cursor: pointer;
   font-size: 12px; padding: 2px 4px; border-radius: 4px;
-  opacity: 0; transition: opacity 0.15s;
+  opacity: 0; transition: opacity 0.15s; line-height: 1;
 }
 .board-item:hover .icon-btn-sm { opacity: 1; }
 .icon-btn-sm:hover { background: var(--bg-hover); }
@@ -833,7 +835,7 @@ body,
   transition: background 0.1s;
 }
 .board-item:hover { background: #f8fafc; }
-.board-item-icon { font-size: 14px; flex-shrink: 0; }
+.board-item-icon { font-size: 14px; flex-shrink: 0; line-height: 1; }
 .board-item-name {
   flex: 1; background: none; border: none;
   text-align: left; cursor: pointer;
@@ -1246,7 +1248,7 @@ body,
   }
 
   .pins-panel {
-    top: 44px;
+    bottom: 44px;
   }
 
   .login-card { padding: 28px 20px; }
