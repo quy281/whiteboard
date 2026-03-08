@@ -1,76 +1,109 @@
-import { useState, useCallback } from 'react';
-import type { UserProfile, UserSession } from '../types';
-import { generateId } from '../utils';
-
-const SESSION_KEY = 'wb-session';
-const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-
-function loadSession(): UserSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const session: UserSession = JSON.parse(raw);
-    if (Date.now() > session.expiresAt) {
-      localStorage.removeItem(SESSION_KEY);
-      return null;
-    }
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-function saveSession(session: UserSession) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-}
+import { useState, useCallback, useEffect } from 'react';
+import type { UserProfile } from '../types';
+import { supabase } from '../supabaseClient';
+import type { User } from '@supabase/supabase-js';
 
 export function useUserSession() {
-  const [session, setSession] = useState<UserSession | null>(() => loadSession());
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = useCallback((name: string, color: string, avatar: string) => {
-    const profile: UserProfile = {
-      id: generateId(),
-      name,
-      color,
-      avatar,
-    };
-    const newSession: UserSession = {
-      profile,
-      expiresAt: Date.now() + THIRTY_DAYS,
-    };
-    saveSession(newSession);
-    setSession(newSession);
-    return newSession;
-  }, []);
-
-  const updateProfile = useCallback((updates: Partial<UserProfile>) => {
-    setSession((prev) => {
-      if (!prev) return prev;
-      const updated: UserSession = {
-        ...prev,
-        profile: { ...prev.profile, ...updates },
-        expiresAt: Date.now() + THIRTY_DAYS, // extend session
-      };
-      saveSession(updated);
-      return updated;
+  // Listen for auth changes
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else {
+        setIsLoading(false);
+      }
     });
+
+    // Listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else {
+        setProfile(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
-    setSession(null);
+  const loadProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (data) {
+      setProfile({
+        id: data.id,
+        name: data.name,
+        color: data.color,
+        avatar: data.avatar,
+      });
+    }
+    setIsLoading(false);
+  };
+
+  const signup = useCallback(async (email: string, password: string, name: string, color: string, avatar: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, color, avatar },
+      },
+    });
+    if (error) throw error;
+    if (data.user) {
+      setProfile({ id: data.user.id, name, color, avatar });
+    }
+    return data;
   }, []);
 
-  // Extend session on load
-  if (session && session.expiresAt - Date.now() < THIRTY_DAYS * 0.5) {
-    const extended = { ...session, expiresAt: Date.now() + THIRTY_DAYS };
-    saveSession(extended);
-  }
+  const login = useCallback(async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
+  }, []);
+
+  const updateProfile = useCallback(async (updates: Partial<Pick<UserProfile, 'name' | 'color' | 'avatar'>>) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (!error) {
+      setProfile((prev) => prev ? { ...prev, ...updates } : prev);
+    }
+  }, [user]);
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
+  }, []);
 
   return {
-    session,
-    profile: session?.profile ?? null,
-    isLoggedIn: !!session,
+    user,
+    profile,
+    isLoggedIn: !!user,
+    isLoading,
+    signup,
     login,
     updateProfile,
     logout,

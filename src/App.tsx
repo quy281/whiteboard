@@ -19,17 +19,25 @@ import './index.css';
 
 function App() {
   // ── Session & Profile ──
-  const { profile, isLoggedIn, login, updateProfile, logout } = useUserSession();
+  const { user, profile, isLoggedIn, isLoading, signup, login, updateProfile, logout } = useUserSession();
 
   // ── Screen routing ──
-  const [screen, setScreen] = useState<AppScreen>(() => (isLoggedIn ? 'projects' : 'login'));
+  const [screen, setScreen] = useState<AppScreen>('login');
   const [activeBoard, setActiveBoard] = useState<Board | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+
+  // Set initial screen based on auth state
+  useEffect(() => {
+    if (!isLoading) {
+      setScreen(isLoggedIn ? 'projects' : 'login');
+    }
+  }, [isLoading, isLoggedIn]);
 
   // ── Projects ──
   const {
     projects,
     boards,
+    isLoading: projectsLoading,
     createProject,
     updateProject,
     deleteProject,
@@ -39,7 +47,7 @@ function App() {
     loadBoardData,
     saveBoardData,
     getBoardsForProject,
-  } = useProjects();
+  } = useProjects(user?.id);
 
   // ── Whiteboard State ──
   const [tool, setTool] = useState<Tool>('pen');
@@ -66,7 +74,6 @@ function App() {
     awareness,
     cursors,
     users,
-
     roomId,
     isConnected,
   } = useCollaboration(
@@ -93,8 +100,8 @@ function App() {
   }, [shapes, notes, checklists, bookmarks, viewport, saveBoardData]);
 
   // ── Board open/close ──
-  const handleOpenBoard = useCallback((board: Board) => {
-    const data = loadBoardData(board.id);
+  const handleOpenBoard = useCallback(async (board: Board) => {
+    const data = await loadBoardData(board.id);
     setShapes(data.shapes);
     setNotes(data.notes);
     setChecklists(data.checklists);
@@ -105,7 +112,6 @@ function App() {
   }, [loadBoardData]);
 
   const handleBackToProjects = useCallback(() => {
-    // Save current board before leaving
     if (activeBoard) {
       saveBoardData(activeBoard.id, {
         shapes, notes, checklists, bookmarks, viewport,
@@ -121,7 +127,6 @@ function App() {
   }, [activeBoard, shapes, notes, checklists, bookmarks, viewport, saveBoardData]);
 
   const handleJoinRoom = useCallback((roomCode: string) => {
-    // Create a temporary board for the joined room
     const board: Board = {
       id: generateId(),
       projectId: '',
@@ -177,7 +182,7 @@ function App() {
     setViewport({ x: 0, y: 0, zoom: 1 });
   }, []);
 
-  // ── Canvas click for note/checklist placement ──
+  // ── Canvas click for note/checklist ──
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (tool !== 'note' && tool !== 'checklist') return;
@@ -218,7 +223,6 @@ function App() {
     [tool, viewport]
   );
 
-  // Note/Checklist handlers
   const handleNoteUpdate = useCallback((note: NoteShape) => {
     setNotes((prev) => prev.map((n) => (n.id === note.id ? note : n)));
   }, []);
@@ -235,7 +239,6 @@ function App() {
     setChecklists((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  // Bookmark handlers
   const handleBookmarkAdd = useCallback((bm: Bookmark) => {
     setBookmarks((prev) => [...prev, bm]);
   }, []);
@@ -252,7 +255,7 @@ function App() {
     setViewport({ x: bm.x, y: bm.y, zoom: bm.zoom });
   }, []);
 
-  // Keyboard shortcuts (only in board view)
+  // Keyboard shortcuts (board view only)
   useEffect(() => {
     if (screen !== 'board') return;
 
@@ -292,14 +295,17 @@ function App() {
     };
   }, [screen, undo, redo, handleGoHome, handleBackToProjects]);
 
-  // ── Login handler ──
-  const handleLogin = useCallback((name: string, userColor: string, avatar: string) => {
-    login(name, userColor, avatar);
-    setScreen('projects');
+  // ── Auth handlers ──
+  const handleSignup = useCallback(async (email: string, password: string, name: string, userColor: string, avatar: string) => {
+    await signup(email, password, name, userColor, avatar);
+  }, [signup]);
+
+  const handleLogin = useCallback(async (email: string, password: string) => {
+    await login(email, password);
   }, [login]);
 
-  const handleLogout = useCallback(() => {
-    logout();
+  const handleLogout = useCallback(async () => {
+    await logout();
     setScreen('login');
     setShowProfile(false);
   }, [logout]);
@@ -308,30 +314,47 @@ function App() {
   //  RENDER
   // ══════════════════════════════════════════════════════════
 
+  // ── Loading ──
+  if (isLoading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+        <p>Đang tải...</p>
+      </div>
+    );
+  }
+
   // ── Login Screen ──
   if (screen === 'login' || !isLoggedIn) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onSignup={handleSignup} onLogin={handleLogin} />;
   }
 
   // ── Projects Screen ──
   if (screen === 'projects') {
     return (
       <>
-        <ProjectsScreen
-          profile={profile!}
-          projects={projects}
-          boards={boards}
-          onCreateProject={createProject}
-          onDeleteProject={deleteProject}
-          onUpdateProject={updateProject}
-          onCreateBoard={createBoard}
-          onDeleteBoard={deleteBoard}
-          onRenameBoard={renameBoard}
-          onOpenBoard={handleOpenBoard}
-          onJoinRoom={handleJoinRoom}
-          onOpenProfile={() => setShowProfile(true)}
-          getBoardsForProject={getBoardsForProject}
-        />
+        {projectsLoading ? (
+          <div className="loading-screen">
+            <div className="loading-spinner" />
+            <p>Đang tải dự án...</p>
+          </div>
+        ) : (
+          <ProjectsScreen
+            profile={profile!}
+            projects={projects}
+            boards={boards}
+            onCreateProject={createProject}
+            onDeleteProject={deleteProject}
+            onUpdateProject={updateProject}
+            onCreateBoard={createBoard}
+            onDeleteBoard={deleteBoard}
+            onRenameBoard={renameBoard}
+            onOpenBoard={handleOpenBoard}
+            onJoinRoom={handleJoinRoom}
+            onOpenProfile={() => setShowProfile(true)}
+            getBoardsForProject={getBoardsForProject}
+          />
+        )}
         {showProfile && profile && (
           <ProfileModal
             name={profile.name}
@@ -349,7 +372,6 @@ function App() {
   // ── Board View ──
   return (
     <div className="app">
-      {/* Top bar: tools + back button */}
       <div className="toolbar toolbar-top">
         <button className="tool-btn tool-btn-compact" onClick={handleBackToProjects} title="Quay lại">
           ◀
@@ -419,7 +441,6 @@ function App() {
         )}
       </div>
 
-      {/* Bottom bar: colors, stroke, undo/redo */}
       <Toolbar
         tool={tool}
         onToolChange={setTool}
@@ -452,14 +473,12 @@ function App() {
         onRename={handleBookmarkRename}
       />
 
-      {/* Board name badge */}
       {activeBoard && (
         <div className="board-name-badge">
           📋 {activeBoard.name}
         </div>
       )}
 
-      {/* Profile modal */}
       {showProfile && profile && (
         <ProfileModal
           name={profile.name}

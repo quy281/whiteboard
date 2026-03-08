@@ -5,12 +5,12 @@ interface ProjectsScreenProps {
   profile: UserProfile;
   projects: Project[];
   boards: Board[];
-  onCreateProject: (name: string, description?: string) => Project;
-  onDeleteProject: (id: string) => void;
-  onUpdateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'description'>>) => void;
-  onCreateBoard: (projectId: string, name: string) => Board;
-  onDeleteBoard: (id: string) => void;
-  onRenameBoard: (id: string, name: string) => void;
+  onCreateProject: (name: string, description?: string) => Promise<Project>;
+  onDeleteProject: (id: string) => Promise<void>;
+  onUpdateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'description'>>) => Promise<void>;
+  onCreateBoard: (projectId: string, name: string) => Promise<Board>;
+  onDeleteBoard: (id: string) => Promise<void>;
+  onRenameBoard: (id: string, name: string) => Promise<void>;
   onOpenBoard: (board: Board) => void;
   onJoinRoom: (roomId: string) => void;
   onOpenProfile: () => void;
@@ -44,9 +44,9 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
   const [editingBoard, setEditingBoard] = useState<string | null>(null);
   const [editBoardName, setEditBoardName] = useState('');
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     if (newProjectName.trim()) {
-      const project = onCreateProject(newProjectName.trim(), newProjectDesc.trim());
+      const project = await onCreateProject(newProjectName.trim(), newProjectDesc.trim());
       setNewProjectName('');
       setNewProjectDesc('');
       setShowNewProject(false);
@@ -54,9 +54,9 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
     }
   };
 
-  const handleCreateBoard = (projectId: string) => {
+  const handleCreateBoard = async (projectId: string) => {
     if (newBoardName.trim()) {
-      onCreateBoard(projectId, newBoardName.trim());
+      await onCreateBoard(projectId, newBoardName.trim());
       setNewBoardName('');
       setAddingBoardFor(null);
     }

@@ -1,37 +1,67 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Project, Board, BoardData, Shape, NoteShape, ChecklistShape, Bookmark, Viewport } from '../types';
+import { supabase } from '../supabaseClient';
 import { generateId } from '../utils';
-
-const PROJECTS_KEY = 'wb-projects';
-const BOARDS_KEY = 'wb-boards';
-const BOARD_DATA_PREFIX = 'wb-bd-';
 
 const PROJECT_COLORS = [
   '#6366f1', '#f43f5e', '#10b981', '#f59e0b',
   '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
 ];
 
-function loadJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch { return fallback; }
-}
+export function useProjects(userId?: string) {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-function saveJSON(key: string, data: unknown) {
-  localStorage.setItem(key, JSON.stringify(data));
-}
+  // Load from Supabase on mount
+  useEffect(() => {
+    if (!userId) { setIsLoading(false); return; }
 
-export function useProjects() {
-  const [projects, setProjects] = useState<Project[]>(() => loadJSON(PROJECTS_KEY, []));
-  const [boards, setBoards] = useState<Board[]>(() => loadJSON(BOARDS_KEY, []));
+    const load = async () => {
+      const [pRes, bRes] = await Promise.all([
+        supabase.from('projects').select('*').eq('user_id', userId).order('updated_at', { ascending: false }),
+        supabase.from('boards').select('*').eq('user_id', userId),
+      ]);
 
-  // Persist
-  useEffect(() => { saveJSON(PROJECTS_KEY, projects); }, [projects]);
-  useEffect(() => { saveJSON(BOARDS_KEY, boards); }, [boards]);
+      if (pRes.data) {
+        setProjects(pRes.data.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: p.name as string,
+          description: (p.description as string) || '',
+          color: (p.color as string) || '#6366f1',
+          createdAt: p.created_at as number,
+          updatedAt: p.updated_at as number,
+          boardIds: [],
+        })));
+      }
+
+      if (bRes.data) {
+        const boardsList = bRes.data.map((b: Record<string, unknown>) => ({
+          id: b.id as string,
+          projectId: b.project_id as string,
+          name: b.name as string,
+          roomId: b.room_id as string,
+          createdAt: b.created_at as number,
+          updatedAt: b.updated_at as number,
+        }));
+        setBoards(boardsList);
+
+        // Rebuild boardIds for projects
+        if (pRes.data) {
+          setProjects(prev => prev.map(p => ({
+            ...p,
+            boardIds: boardsList.filter((b: Board) => b.projectId === p.id).map((b: Board) => b.id),
+          })));
+        }
+      }
+
+      setIsLoading(false);
+    };
+    load();
+  }, [userId]);
 
   // ── Project CRUD ──
-  const createProject = useCallback((name: string, description = '') => {
+  const createProject = useCallback(async (name: string, description = '') => {
     const project: Project = {
       id: generateId(),
       name,
@@ -41,28 +71,48 @@ export function useProjects() {
       updatedAt: Date.now(),
       boardIds: [],
     };
-    setProjects((prev) => [project, ...prev]);
-    return project;
-  }, []);
 
-  const updateProject = useCallback((id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'color'>>) => {
+    setProjects((prev) => [project, ...prev]);
+
+    if (userId) {
+      await supabase.from('projects').insert({
+        id: project.id,
+        user_id: userId,
+        name: project.name,
+        description: project.description,
+        color: project.color,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt,
+      });
+    }
+
+    return project;
+  }, [userId]);
+
+  const updateProject = useCallback(async (id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'color'>>) => {
     setProjects((prev) => prev.map((p) =>
       p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p
     ));
-  }, []);
 
-  const deleteProject = useCallback((id: string) => {
+    if (userId) {
+      await supabase.from('projects').update({
+        ...updates,
+        updated_at: Date.now(),
+      }).eq('id', id);
+    }
+  }, [userId]);
+
+  const deleteProject = useCallback(async (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
-    // Also delete boards of this project
-    setBoards((prev) => {
-      const toDelete = prev.filter((b) => b.projectId === id);
-      toDelete.forEach((b) => localStorage.removeItem(BOARD_DATA_PREFIX + b.id));
-      return prev.filter((b) => b.projectId !== id);
-    });
-  }, []);
+    setBoards((prev) => prev.filter((b) => b.projectId !== id));
+
+    if (userId) {
+      await supabase.from('projects').delete().eq('id', id);
+    }
+  }, [userId]);
 
   // ── Board CRUD ──
-  const createBoard = useCallback((projectId: string, name: string) => {
+  const createBoard = useCallback(async (projectId: string, name: string) => {
     const board: Board = {
       id: generateId(),
       projectId,
@@ -71,26 +121,46 @@ export function useProjects() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+
     setBoards((prev) => [...prev, board]);
     setProjects((prev) => prev.map((p) =>
       p.id === projectId ? { ...p, boardIds: [...p.boardIds, board.id], updatedAt: Date.now() } : p
     ));
-    // Init empty board data
-    const emptyData: BoardData = {
-      shapes: [], notes: [], checklists: [], bookmarks: [],
-      viewport: { x: 0, y: 0, zoom: 1 },
-    };
-    saveJSON(BOARD_DATA_PREFIX + board.id, emptyData);
-    return board;
-  }, []);
 
-  const renameBoard = useCallback((id: string, name: string) => {
+    if (userId) {
+      await supabase.from('boards').insert({
+        id: board.id,
+        project_id: board.projectId,
+        user_id: userId,
+        name: board.name,
+        room_id: board.roomId,
+        created_at: board.createdAt,
+        updated_at: board.updatedAt,
+      });
+
+      // Init empty board data
+      await supabase.from('board_data').insert({
+        board_id: board.id,
+        user_id: userId,
+        data: { shapes: [], notes: [], checklists: [], bookmarks: [], viewport: { x: 0, y: 0, zoom: 1 } },
+        updated_at: Date.now(),
+      });
+    }
+
+    return board;
+  }, [userId]);
+
+  const renameBoard = useCallback(async (id: string, name: string) => {
     setBoards((prev) => prev.map((b) =>
       b.id === id ? { ...b, name, updatedAt: Date.now() } : b
     ));
-  }, []);
 
-  const deleteBoard = useCallback((id: string) => {
+    if (userId) {
+      await supabase.from('boards').update({ name, updated_at: Date.now() }).eq('id', id);
+    }
+  }, [userId]);
+
+  const deleteBoard = useCallback(async (id: string) => {
     const board = boards.find((b) => b.id === id);
     if (board) {
       setProjects((prev) => prev.map((p) =>
@@ -100,16 +170,40 @@ export function useProjects() {
       ));
     }
     setBoards((prev) => prev.filter((b) => b.id !== id));
-    localStorage.removeItem(BOARD_DATA_PREFIX + id);
-  }, [boards]);
+
+    if (userId) {
+      await supabase.from('boards').delete().eq('id', id);
+    }
+  }, [userId, boards]);
 
   // ── Board Data ──
-  const loadBoardData = useCallback((boardId: string): BoardData => {
-    return loadJSON<BoardData>(BOARD_DATA_PREFIX + boardId, {
+  const loadBoardData = useCallback(async (boardId: string): Promise<BoardData> => {
+    const empty: BoardData = {
       shapes: [], notes: [], checklists: [], bookmarks: [],
       viewport: { x: 0, y: 0, zoom: 1 },
-    });
-  }, []);
+    };
+
+    if (!userId) return empty;
+
+    const { data } = await supabase
+      .from('board_data')
+      .select('data')
+      .eq('board_id', boardId)
+      .single();
+
+    if (data?.data) {
+      const d = data.data as Record<string, unknown>;
+      return {
+        shapes: (d.shapes as Shape[]) || [],
+        notes: (d.notes as NoteShape[]) || [],
+        checklists: (d.checklists as ChecklistShape[]) || [],
+        bookmarks: (d.bookmarks as Bookmark[]) || [],
+        viewport: (d.viewport as Viewport) || { x: 0, y: 0, zoom: 1 },
+      };
+    }
+
+    return empty;
+  }, [userId]);
 
   const saveBoardDataRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -123,15 +217,23 @@ export function useProjects() {
       viewport: Viewport;
     }
   ) => {
-    // Debounced save — 2 seconds
+    if (!userId) return;
+
+    // Debounced save — 3 seconds
     if (saveBoardDataRef.current) clearTimeout(saveBoardDataRef.current);
-    saveBoardDataRef.current = setTimeout(() => {
-      saveJSON(BOARD_DATA_PREFIX + boardId, data);
+    saveBoardDataRef.current = setTimeout(async () => {
+      await supabase.from('board_data').upsert({
+        board_id: boardId,
+        user_id: userId,
+        data,
+        updated_at: Date.now(),
+      });
+
       setBoards((prev) => prev.map((b) =>
         b.id === boardId ? { ...b, updatedAt: Date.now() } : b
       ));
-    }, 2000);
-  }, []);
+    }, 3000);
+  }, [userId]);
 
   const getBoardsForProject = useCallback((projectId: string) => {
     return boards.filter((b) => b.projectId === projectId);
@@ -144,6 +246,7 @@ export function useProjects() {
   return {
     projects,
     boards,
+    isLoading,
     createProject,
     updateProject,
     deleteProject,
