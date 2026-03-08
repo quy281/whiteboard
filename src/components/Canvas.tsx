@@ -59,41 +59,79 @@ const Canvas: React.FC<CanvasProps> = ({
     return () => obs.disconnect();
   }, []);
 
-  // Render loop
+  // Keep refs in sync for rAF access (avoid stale closures)
+  const shapesRef = useRef(shapes);
+  shapesRef.current = shapes;
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
+  const cursorsRef = useRef(cursors);
+  cursorsRef.current = cursors;
+  const canvasSizeRef = useRef(canvasSize);
+  canvasSizeRef.current = canvasSize;
+
+  const needsRedraw = useRef(true);
+  const rafId = useRef(0);
+
+  // Mark redraw needed when dependencies change
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvasSize.width * dpr;
-    canvas.height = canvasSize.height * dpr;
-    canvas.style.width = `${canvasSize.width}px`;
-    canvas.style.height = `${canvasSize.height}px`;
-    ctx.scale(dpr, dpr);
-
-    // Clear — white background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
-
-    // Grid
-    drawGrid(ctx, viewport, canvasSize.width, canvasSize.height);
-
-    // Draw shapes
-    for (const shape of shapes) {
-      drawShape(ctx, shape, viewport);
-    }
-
-    // Draw current shape being drawn
-    if (currentShape.current) {
-      drawShape(ctx, currentShape.current, viewport);
-    }
-
-    // Draw remote cursors
-    for (const cursor of cursors) {
-      drawCursor(ctx, cursor, viewport);
-    }
+    needsRedraw.current = true;
   }, [shapes, viewport, canvasSize, cursors]);
+
+  // requestAnimationFrame render loop
+  useEffect(() => {
+    const renderFrame = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        rafId.current = requestAnimationFrame(renderFrame);
+        return;
+      }
+
+      // Only redraw when needed or actively drawing
+      if (!needsRedraw.current && !isDrawing.current) {
+        rafId.current = requestAnimationFrame(renderFrame);
+        return;
+      }
+      needsRedraw.current = false;
+
+      const ctx = canvas.getContext('2d')!;
+      const cs = canvasSizeRef.current;
+      const vp = viewportRef.current;
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = cs.width * dpr;
+      canvas.height = cs.height * dpr;
+      canvas.style.width = `${cs.width}px`;
+      canvas.style.height = `${cs.height}px`;
+      ctx.scale(dpr, dpr);
+
+      // Clear — white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cs.width, cs.height);
+
+      // Grid
+      drawGrid(ctx, vp, cs.width, cs.height);
+
+      // Draw shapes
+      for (const shape of shapesRef.current) {
+        drawShape(ctx, shape, vp);
+      }
+
+      // Draw current shape being drawn
+      if (currentShape.current) {
+        drawShape(ctx, currentShape.current, vp);
+      }
+
+      // Draw remote cursors
+      for (const cursor of cursorsRef.current) {
+        drawCursor(ctx, cursor, vp);
+      }
+
+      rafId.current = requestAnimationFrame(renderFrame);
+    };
+
+    rafId.current = requestAnimationFrame(renderFrame);
+    return () => cancelAnimationFrame(rafId.current);
+  }, []); // runs once, loops via rAF
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, vp: Viewport, w: number, h: number) => {
