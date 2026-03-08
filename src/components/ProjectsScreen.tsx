@@ -14,6 +14,7 @@ interface ProjectsScreenProps {
   onOpenBoard: (board: Board) => void;
   onJoinRoom: (roomId: string) => void;
   onOpenProfile: () => void;
+  onShareProject: (projectId: string, projectName: string) => void;
   getBoardsForProject: (projectId: string) => Board[];
 }
 
@@ -29,6 +30,7 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
   onOpenBoard,
   onJoinRoom,
   onOpenProfile,
+  onShareProject,
   getBoardsForProject,
 }) => {
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
@@ -178,6 +180,11 @@ const ProjectsScreen: React.FC<ProjectsScreenProps> = ({
                     </span>
                   </div>
                   <div className="project-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="icon-btn"
+                      title="Chia sẻ"
+                      onClick={() => onShareProject(project.id, project.name)}
+                    >👥</button>
                     <button
                       className="icon-btn"
                       title="Đổi tên"

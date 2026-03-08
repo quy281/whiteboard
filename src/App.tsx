@@ -8,6 +8,7 @@ import PinsPanel from './components/PinsPanel';
 import LoginScreen from './components/LoginScreen';
 import ProjectsScreen from './components/ProjectsScreen';
 import ProfileModal from './components/ProfileModal';
+import ShareModal from './components/ShareModal';
 import { useHistory } from './hooks/useHistory';
 import { useCollaboration } from './hooks/useCollaboration';
 import { useUserSession } from './hooks/useUserSession';
@@ -25,6 +26,8 @@ function App() {
   const [screen, setScreen] = useState<AppScreen>('login');
   const [activeBoard, setActiveBoard] = useState<Board | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [shareProject, setShareProject] = useState<{ id: string; name: string } | null>(null);
+  const [showRoomShare, setShowRoomShare] = useState(false);
 
   // Set initial screen based on auth state
   useEffect(() => {
@@ -352,6 +355,7 @@ function App() {
             onOpenBoard={handleOpenBoard}
             onJoinRoom={handleJoinRoom}
             onOpenProfile={() => setShowProfile(true)}
+            onShareProject={(id, name) => setShareProject({ id, name })}
             getBoardsForProject={getBoardsForProject}
           />
         )}
@@ -363,6 +367,13 @@ function App() {
             onSave={updateProfile}
             onLogout={handleLogout}
             onClose={() => setShowProfile(false)}
+          />
+        )}
+        {shareProject && (
+          <ShareModal
+            projectId={shareProject.id}
+            projectName={shareProject.name}
+            onClose={() => setShareProject(null)}
           />
         )}
       </>
@@ -476,6 +487,37 @@ function App() {
       {activeBoard && (
         <div className="board-name-badge">
           📋 {activeBoard.name}
+        </div>
+      )}
+
+      {/* Room share floating button */}
+      <button
+        className="room-share-fab"
+        onClick={() => setShowRoomShare(!showRoomShare)}
+        title="Chia sẻ phòng"
+      >
+        🔗
+      </button>
+
+      {showRoomShare && (
+        <div className="room-share-panel">
+          <div className="room-share-header">
+            <span>Chia sẻ phòng vẽ</span>
+            <button className="modal-close" onClick={() => setShowRoomShare(false)}>✕</button>
+          </div>
+          <div className="room-share-code">{roomId}</div>
+          <button
+            className="btn-primary-sm"
+            style={{ width: '100%' }}
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}#${roomId}`;
+              navigator.clipboard.writeText(url);
+              setShowRoomShare(false);
+            }}
+          >
+            📋 Copy link
+          </button>
+          <p className="room-share-hint">Gửi link này cho người khác để vẽ chung real-time</p>
         </div>
       )}
 

@@ -13,18 +13,22 @@ export function useProjects(userId?: string) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load from Supabase on mount
+  // Load from Supabase on mount (owned + shared)
   useEffect(() => {
     if (!userId) { setIsLoading(false); return; }
 
     const load = async () => {
+      // Load owned projects
       const [pRes, bRes] = await Promise.all([
         supabase.from('projects').select('*').eq('user_id', userId).order('updated_at', { ascending: false }),
         supabase.from('boards').select('*').eq('user_id', userId),
       ]);
 
+      let allProjects: Project[] = [];
+      let allBoards: Board[] = [];
+
       if (pRes.data) {
-        setProjects(pRes.data.map((p: Record<string, unknown>) => ({
+        allProjects = pRes.data.map((p: Record<string, unknown>) => ({
           id: p.id as string,
           name: p.name as string,
           description: (p.description as string) || '',
@@ -32,11 +36,11 @@ export function useProjects(userId?: string) {
           createdAt: p.created_at as number,
           updatedAt: p.updated_at as number,
           boardIds: [],
-        })));
+        }));
       }
 
       if (bRes.data) {
-        const boardsList = bRes.data.map((b: Record<string, unknown>) => ({
+        allBoards = bRes.data.map((b: Record<string, unknown>) => ({
           id: b.id as string,
           projectId: b.project_id as string,
           name: b.name as string,
@@ -44,17 +48,60 @@ export function useProjects(userId?: string) {
           createdAt: b.created_at as number,
           updatedAt: b.updated_at as number,
         }));
-        setBoards(boardsList);
+      }
 
-        // Rebuild boardIds for projects
-        if (pRes.data) {
-          setProjects(prev => prev.map(p => ({
-            ...p,
-            boardIds: boardsList.filter((b: Board) => b.projectId === p.id).map((b: Board) => b.id),
-          })));
+      // Load shared projects (via project_members)
+      const { data: memberships } = await supabase
+        .from('project_members')
+        .select('project_id')
+        .eq('user_id', userId);
+
+      if (memberships && memberships.length > 0) {
+        const sharedProjectIds = memberships.map((m: { project_id: string }) => m.project_id);
+
+        const [spRes, sbRes] = await Promise.all([
+          supabase.from('projects').select('*').in('id', sharedProjectIds),
+          supabase.from('boards').select('*').in('project_id', sharedProjectIds),
+        ]);
+
+        if (spRes.data) {
+          const sharedProjects = spRes.data
+            .filter((p: Record<string, unknown>) => !allProjects.some(ap => ap.id === p.id))
+            .map((p: Record<string, unknown>) => ({
+              id: p.id as string,
+              name: '🤝 ' + (p.name as string),
+              description: (p.description as string) || '',
+              color: (p.color as string) || '#6366f1',
+              createdAt: p.created_at as number,
+              updatedAt: p.updated_at as number,
+              boardIds: [],
+            }));
+          allProjects = [...allProjects, ...sharedProjects];
+        }
+
+        if (sbRes.data) {
+          const sharedBoards = sbRes.data
+            .filter((b: Record<string, unknown>) => !allBoards.some(ab => ab.id === b.id))
+            .map((b: Record<string, unknown>) => ({
+              id: b.id as string,
+              projectId: b.project_id as string,
+              name: b.name as string,
+              roomId: b.room_id as string,
+              createdAt: b.created_at as number,
+              updatedAt: b.updated_at as number,
+            }));
+          allBoards = [...allBoards, ...sharedBoards];
         }
       }
 
+      // Rebuild boardIds
+      allProjects = allProjects.map(p => ({
+        ...p,
+        boardIds: allBoards.filter((b: Board) => b.projectId === p.id).map((b: Board) => b.id),
+      }));
+
+      setProjects(allProjects);
+      setBoards(allBoards);
       setIsLoading(false);
     };
     load();
