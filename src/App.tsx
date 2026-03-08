@@ -214,6 +214,7 @@ function App() {
 
   return (
     <div className="app">
+      {/* Top bar: tools only */}
       <Toolbar
         tool={tool}
         onToolChange={setTool}
@@ -226,6 +227,7 @@ function App() {
         canUndo={canUndo}
         canRedo={canRedo}
         onClear={handleClear}
+        position="top"
       />
 
       <div
@@ -268,6 +270,22 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Bottom bar: colors, stroke, undo/redo */}
+      <Toolbar
+        tool={tool}
+        onToolChange={setTool}
+        color={color}
+        onColorChange={setColor}
+        strokeWidth={strokeWidth}
+        onStrokeWidthChange={setStrokeWidth}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onClear={handleClear}
+        position="bottom"
+      />
 
       <StatusBar
         viewport={viewport}

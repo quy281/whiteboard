@@ -39,16 +39,44 @@ export function drawShape(ctx: CanvasRenderingContext2D, shape: Shape, vp: Viewp
     case 'pen':
     case 'eraser': {
       if (shape.points.length < 2) break;
-      ctx.beginPath();
-      ctx.moveTo(shape.points[0].x, shape.points[0].y);
-      for (let i = 1; i < shape.points.length; i++) {
-        const mid = {
-          x: (shape.points[i - 1].x + shape.points[i].x) / 2,
-          y: (shape.points[i - 1].y + shape.points[i].y) / 2,
-        };
-        ctx.quadraticCurveTo(shape.points[i - 1].x, shape.points[i - 1].y, mid.x, mid.y);
+      const pts = shape.points;
+      const hasPressure = pts.some(p => p.pressure !== undefined && p.pressure > 0);
+
+      if (hasPressure) {
+        // Variable-width stroke based on pressure
+        for (let i = 1; i < pts.length; i++) {
+          const p0 = pts[i - 1];
+          const p1 = pts[i];
+          // Pressure range 0.0..1.0 → lineWidth 0.3x..2.5x
+          const pressure = p1.pressure ?? 0.5;
+          const w = shape.strokeWidth * (0.3 + pressure * 2.2);
+          ctx.lineWidth = w;
+          ctx.beginPath();
+          if (i === 1) {
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(p1.x, p1.y);
+          } else {
+            const prev = pts[i - 2];
+            const mid0 = { x: (prev.x + p0.x) / 2, y: (prev.y + p0.y) / 2 };
+            const mid1 = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+            ctx.moveTo(mid0.x, mid0.y);
+            ctx.quadraticCurveTo(p0.x, p0.y, mid1.x, mid1.y);
+          }
+          ctx.stroke();
+        }
+      } else {
+        // Fallback: smooth quadratic curve (no pressure)
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          const mid = {
+            x: (pts[i - 1].x + pts[i].x) / 2,
+            y: (pts[i - 1].y + pts[i].y) / 2,
+          };
+          ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, mid.x, mid.y);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
       break;
     }
     case 'line': {

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import type { Shape, Tool, Viewport, Point } from '../types';
 import { drawShape, screenToWorld, generateId } from '../utils';
+import { usePenSound } from '../hooks/usePenSound';
 
 interface CanvasProps {
   shapes: Shape[];
@@ -34,10 +35,15 @@ const Canvas: React.FC<CanvasProps> = ({
   const currentShape = useRef<Shape | null>(null);
   const panStart = useRef<Point | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const lastPointer = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  // Pen sound
+  const { startSound, updateSound, stopSound } = usePenSound();
 
   // Pinch-to-zoom state
   const lastTouchDist = useRef<number | null>(null);
   const lastTouchMid = useRef<Point | null>(null);
+  const isPinching = useRef(false);
 
   // Resize observer
   useEffect(() => {
@@ -163,6 +169,9 @@ const Canvas: React.FC<CanvasProps> = ({
   // Mouse handlers
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // Skip drawing if pinching (multi-touch zoom/pan)
+      if (isPinching.current) return;
+
       const canvas = canvasRef.current!;
       canvas.setPointerCapture(e.pointerId);
 
@@ -186,9 +195,12 @@ const Canvas: React.FC<CanvasProps> = ({
       };
 
       switch (tool) {
-        case 'pen':
-          currentShape.current = { ...base, type: 'pen', points: [world] };
+        case 'pen': {
+          const p: Point = { ...world, pressure: e.pressure > 0 ? e.pressure : 0.5 };
+          currentShape.current = { ...base, type: 'pen', points: [p] };
+          startSound();
           break;
+        }
         case 'eraser':
           currentShape.current = {
             ...base,
@@ -244,6 +256,9 @@ const Canvas: React.FC<CanvasProps> = ({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Skip if pinching
+      if (isPinching.current) return;
+
       const canvas = canvasRef.current!;
       const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
@@ -267,7 +282,21 @@ const Canvas: React.FC<CanvasProps> = ({
       const shape = currentShape.current;
 
       switch (shape.type) {
-        case 'pen':
+        case 'pen': {
+          const p: Point = { ...world, pressure: e.pressure > 0 ? e.pressure : 0.5 };
+          shape.points.push(p);
+          // Calculate speed for sound modulation
+          const now = performance.now();
+          if (lastPointer.current) {
+            const dx = e.clientX - lastPointer.current.x;
+            const dy = e.clientY - lastPointer.current.y;
+            const dt = now - lastPointer.current.time;
+            const speed = Math.sqrt(dx * dx + dy * dy) / Math.max(dt, 1);
+            updateSound(speed, e.pressure || 0.5);
+          }
+          lastPointer.current = { x: e.clientX, y: e.clientY, time: now };
+          break;
+        }
         case 'eraser':
           shape.points.push(world);
           break;
@@ -301,7 +330,9 @@ const Canvas: React.FC<CanvasProps> = ({
       currentShape.current = null;
     }
     isDrawing.current = false;
-  }, [onShapeAdd, onShapeComplete]);
+    lastPointer.current = null;
+    stopSound();
+  }, [onShapeAdd, onShapeComplete, stopSound]);
 
   // Zoom
   const handleWheel = useCallback(
@@ -344,8 +375,16 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // Pinch-to-zoom touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
+    if (e.touches.length >= 2) {
       e.preventDefault();
+      isPinching.current = true;
+
+      // Cancel any in-progress drawing
+      if (isDrawing.current && currentShape.current) {
+        currentShape.current = null;
+        isDrawing.current = false;
+      }
+
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       lastTouchDist.current = Math.sqrt(dx * dx + dy * dy);
@@ -396,9 +435,15 @@ const Canvas: React.FC<CanvasProps> = ({
     [viewport, onViewportChange]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    lastTouchDist.current = null;
-    lastTouchMid.current = null;
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      // Small delay before allowing drawing again to prevent accidental strokes
+      setTimeout(() => {
+        isPinching.current = false;
+      }, 100);
+      lastTouchDist.current = null;
+      lastTouchMid.current = null;
+    }
   }, []);
 
   return (

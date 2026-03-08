@@ -53,38 +53,62 @@ body,
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 16px;
+  gap: 2px;
   background: var(--bg-toolbar);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid var(--border-color);
   z-index: 10;
   user-select: none;
 }
+
+.toolbar-top {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  justify-content: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.toolbar-top::-webkit-scrollbar { display: none; }
+
+.toolbar-bottom {
+  padding: 4px 8px;
+  border-top: 1px solid var(--border-color);
+  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.toolbar-bottom::-webkit-scrollbar { display: none; }
 
 .toolbar-section {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
-.toolbar-section.colors {
-  gap: 4px;
-  flex-wrap: wrap;
-  max-width: 200px;
+.toolbar-section.tools-row {
+  gap: 1px;
+}
+
+.toolbar-section.colors-compact {
+  gap: 3px;
+  flex-wrap: nowrap;
 }
 
 .toolbar-section.stroke-section {
-  gap: 10px;
+  gap: 6px;
   align-items: center;
 }
 
-.toolbar-divider {
+.toolbar-divider, .toolbar-divider-compact {
   width: 1px;
-  height: 28px;
+  height: 24px;
   background: var(--border-color);
-  margin: 0 8px;
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 
 /* ── Tool Buttons ────────────────────────────────────────── */
@@ -127,6 +151,21 @@ body,
   line-height: 1;
 }
 
+/* Compact variants */
+.tool-btn-compact {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+.tool-btn-compact .tool-icon {
+  font-size: 15px;
+}
+
+.color-btn-compact {
+  width: 18px;
+  height: 18px;
+}
+
 /* ── Color Buttons ───────────────────────────────────────── */
 .color-btn {
   width: 22px;
@@ -160,7 +199,7 @@ body,
 .stroke-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 80px;
+  width: 60px;
   height: 4px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.1);
@@ -550,4 +589,25 @@ body,
 @keyframes pulse-hint {
   0%, 100% { opacity: 0.9; transform: translateX(-50%) scale(1); }
   50% { opacity: 1; transform: translateX(-50%) scale(1.03); }
+}
+
+/* ── Mobile Optimizations ────────────────────────────────── */
+@media (max-width: 768px) {
+  .status-bar {
+    display: none;
+  }
+
+  .welcome-toast {
+    bottom: 50px;
+    font-size: 11px;
+    padding: 6px 14px;
+  }
+
+  .welcome-toast .shortcut-hint {
+    display: none;
+  }
+
+  .pins-panel {
+    top: 44px;
+  }
 }

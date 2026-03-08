@@ -13,16 +13,17 @@ interface ToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onClear: () => void;
+  position: 'top' | 'bottom';
 }
 
 const TOOLS: { key: Tool; icon: string; label: string }[] = [
   { key: 'pen', icon: '✏️', label: 'Pen' },
   { key: 'line', icon: '╱', label: 'Line' },
-  { key: 'rect', icon: '▭', label: 'Rectangle' },
+  { key: 'rect', icon: '▭', label: 'Rect' },
   { key: 'ellipse', icon: '◯', label: 'Ellipse' },
   { key: 'text', icon: 'T', label: 'Text' },
   { key: 'note', icon: '📝', label: 'Note' },
-  { key: 'checklist', icon: '☑️', label: 'Checklist' },
+  { key: 'checklist', icon: '☑️', label: 'List' },
   { key: 'eraser', icon: '🧹', label: 'Eraser' },
   { key: 'pan', icon: '🤚', label: 'Pan' },
 ];
@@ -45,31 +46,36 @@ const Toolbar: React.FC<ToolbarProps> = ({
   canUndo,
   canRedo,
   onClear,
+  position,
 }) => {
-  return (
-    <div className="toolbar">
-      {/* Tools */}
-      <div className="toolbar-section">
-        {TOOLS.map((t) => (
-          <button
-            key={t.key}
-            className={`tool-btn ${tool === t.key ? 'active' : ''}`}
-            onClick={() => onToolChange(t.key)}
-            title={t.label}
-          >
-            <span className="tool-icon">{t.icon}</span>
-          </button>
-        ))}
+  if (position === 'top') {
+    return (
+      <div className="toolbar toolbar-top">
+        <div className="toolbar-section tools-row">
+          {TOOLS.map((t) => (
+            <button
+              key={t.key}
+              className={`tool-btn tool-btn-compact ${tool === t.key ? 'active' : ''}`}
+              onClick={() => onToolChange(t.key)}
+              title={t.label}
+            >
+              <span className="tool-icon">{t.icon}</span>
+            </button>
+          ))}
+        </div>
       </div>
+    );
+  }
 
-      <div className="toolbar-divider" />
-
+  // position === 'bottom'
+  return (
+    <div className="toolbar toolbar-bottom">
       {/* Colors */}
-      <div className="toolbar-section colors">
+      <div className="toolbar-section colors colors-compact">
         {COLORS.map((c) => (
           <button
             key={c}
-            className={`color-btn ${color === c ? 'active' : ''}`}
+            className={`color-btn color-btn-compact ${color === c ? 'active' : ''}`}
             style={{ '--swatch-color': c } as React.CSSProperties}
             onClick={() => onColorChange(c)}
             title={c}
@@ -77,11 +83,18 @@ const Toolbar: React.FC<ToolbarProps> = ({
         ))}
       </div>
 
-      <div className="toolbar-divider" />
+      <div className="toolbar-divider toolbar-divider-compact" />
 
       {/* Stroke Width */}
       <div className="toolbar-section stroke-section">
-        <div className="stroke-preview" style={{ width: strokeWidth * 2 + 4, height: strokeWidth * 2 + 4, background: color }} />
+        <div
+          className="stroke-preview"
+          style={{
+            width: strokeWidth * 2 + 4,
+            height: strokeWidth * 2 + 4,
+            background: color,
+          }}
+        />
         <input
           type="range"
           className="stroke-slider"
@@ -92,17 +105,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
         />
       </div>
 
-      <div className="toolbar-divider" />
+      <div className="toolbar-divider toolbar-divider-compact" />
 
       {/* Undo / Redo / Clear */}
       <div className="toolbar-section">
-        <button className="tool-btn" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+        <button className="tool-btn tool-btn-compact" onClick={onUndo} disabled={!canUndo} title="Undo">
           ↩️
         </button>
-        <button className="tool-btn" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">
+        <button className="tool-btn tool-btn-compact" onClick={onRedo} disabled={!canRedo} title="Redo">
           ↪️
         </button>
-        <button className="tool-btn danger" onClick={onClear} title="Clear All">
+        <button className="tool-btn tool-btn-compact danger" onClick={onClear} title="Clear">
           🗑️
         </button>
       </div>

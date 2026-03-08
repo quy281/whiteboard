@@ -15,6 +15,7 @@ export type Tool =
 export interface Point {
   x: number;
   y: number;
+  pressure?: number;
 }
 
 export interface BaseShape {
