@@ -13,6 +13,7 @@ interface CanvasProps {
   onShapeAdd: (shape: Shape) => void;
   onShapeUpdate: (shape: Shape) => void;
   onShapeComplete: () => void;
+  onShapeMove?: (id: string, dx: number, dy: number) => void;
   onCursorMove: (x: number, y: number) => void;
   cursors: Array<{ id: string; name: string; color: string; x: number; y: number }>;
 }
@@ -27,6 +28,7 @@ const Canvas: React.FC<CanvasProps> = ({
   onShapeAdd,
   onShapeUpdate,
   onShapeComplete,
+  onShapeMove,
   onCursorMove,
   cursors,
 }) => {
@@ -36,6 +38,9 @@ const Canvas: React.FC<CanvasProps> = ({
   const panStart = useRef<Point | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const lastPointer = useRef<{ x: number; y: number; time: number } | null>(null);
+  // For select/drag
+  const draggingShape = useRef<{ id: string; startWorldX: number; startWorldY: number; pointerStartX: number; pointerStartY: number } | null>(null);
+  const selectedShapeId = useRef<string | null>(null);
 
   // Pen sound
   const { startSound, updateSound, stopSound } = usePenSound();
@@ -204,6 +209,42 @@ const Canvas: React.FC<CanvasProps> = ({
     []
   );
 
+  // Hit-test a world point against shapes (returns topmost matching shape id)
+  const hitTestShape = useCallback((wx: number, wy: number): Shape | null => {
+    const allShapes = shapesRef.current;
+    for (let i = allShapes.length - 1; i >= 0; i--) {
+      const s = allShapes[i];
+      const pad = 10; // hit padding in world units
+      if (s.type === 'text') {
+        // Approximate text bounding box
+        const fw = s.fontSize * 0.6 * s.content.length;
+        const fh = s.fontSize;
+        if (wx >= s.x - pad && wx <= s.x + fw + pad && wy >= s.y - fh - pad && wy <= s.y + pad) return s;
+      } else if (s.type === 'rect') {
+        const x0 = Math.min(s.x, s.x + s.width);
+        const x1 = Math.max(s.x, s.x + s.width);
+        const y0 = Math.min(s.y, s.y + s.height);
+        const y1 = Math.max(s.y, s.y + s.height);
+        if (wx >= x0 - pad && wx <= x1 + pad && wy >= y0 - pad && wy <= y1 + pad) return s;
+      } else if (s.type === 'ellipse') {
+        const dx = (wx - s.cx) / (Math.abs(s.rx) + pad);
+        const dy = (wy - s.cy) / (Math.abs(s.ry) + pad);
+        if (dx * dx + dy * dy <= 1.2) return s;
+      } else if (s.type === 'line') {
+        // Distance from point to line segment
+        const lx = s.end.x - s.start.x;
+        const ly = s.end.y - s.start.y;
+        const len2 = lx * lx + ly * ly;
+        if (len2 === 0) continue;
+        const t = Math.max(0, Math.min(1, ((wx - s.start.x) * lx + (wy - s.start.y) * ly) / len2));
+        const px = s.start.x + t * lx - wx;
+        const py = s.start.y + t * ly - wy;
+        if (Math.sqrt(px * px + py * py) <= s.strokeWidth / 2 + pad) return s;
+      }
+    }
+    return null;
+  }, []);
+
   // Mouse handlers
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -223,7 +264,33 @@ const Canvas: React.FC<CanvasProps> = ({
         return;
       }
 
+      // Select tool — hit-test and start dragging
+      if (tool === 'select') {
+        const hit = hitTestShape(world.x, world.y);
+        if (hit) {
+          selectedShapeId.current = hit.id;
+          const startX = hit.type === 'text' || hit.type === 'rect' ? hit.x :
+            hit.type === 'ellipse' ? hit.cx :
+              hit.type === 'line' ? hit.start.x : 0;
+          const startY = hit.type === 'text' || hit.type === 'rect' ? hit.y :
+            hit.type === 'ellipse' ? hit.cy :
+              hit.type === 'line' ? hit.start.y : 0;
+          draggingShape.current = {
+            id: hit.id,
+            startWorldX: startX,
+            startWorldY: startY,
+            pointerStartX: world.x,
+            pointerStartY: world.y,
+          };
+        } else {
+          selectedShapeId.current = null;
+          draggingShape.current = null;
+        }
+        return;
+      }
+
       isDrawing.current = true;
+
 
       const base = {
         id: generateId(),
@@ -315,6 +382,15 @@ const Canvas: React.FC<CanvasProps> = ({
         return;
       }
 
+      // Drag selected shape
+      if (draggingShape.current && onShapeMove) {
+        const dx = world.x - draggingShape.current.pointerStartX;
+        const dy = world.y - draggingShape.current.pointerStartY;
+        onShapeMove(draggingShape.current.id, draggingShape.current.startWorldX + dx, draggingShape.current.startWorldY + dy);
+        needsRedraw.current = true;
+        return;
+      }
+
       if (!isDrawing.current || !currentShape.current) return;
 
       const shape = currentShape.current;
@@ -353,12 +429,18 @@ const Canvas: React.FC<CanvasProps> = ({
 
       onShapeUpdate({ ...shape });
     },
-    [viewport, onViewportChange, onShapeUpdate, onCursorMove]
+    [viewport, onViewportChange, onShapeUpdate, onCursorMove, onShapeMove]
   );
 
   const handlePointerUp = useCallback(() => {
     if (panStart.current) {
       panStart.current = null;
+      return;
+    }
+
+    // Finish drag
+    if (draggingShape.current) {
+      draggingShape.current = null;
       return;
     }
 
@@ -406,6 +488,8 @@ const Canvas: React.FC<CanvasProps> = ({
         return 'grab';
       case 'text':
         return 'text';
+      case 'select':
+        return selectedShapeId.current ? 'move' : 'default';
       default:
         return 'crosshair';
     }

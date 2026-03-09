@@ -52,27 +52,24 @@ const ChecklistCard: React.FC<{
   const screenY = checklist.y * viewport.zoom + viewport.y;
   const screenW = checklist.width * viewport.zoom;
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'BUTTON') return;
-    if ((e.target as HTMLElement).closest('.cl-interactive')) return;
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
+    if (target.closest('.cl-interactive')) return;
     e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { ox: e.clientX - screenX, oy: e.clientY - screenY };
+  };
 
-    const handleMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const newX = (ev.clientX - dragRef.current.ox - viewport.x) / viewport.zoom;
-      const newY = (ev.clientY - dragRef.current.oy - viewport.y) / viewport.zoom;
-      onUpdate({ ...checklist, x: newX, y: newY });
-    };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const newX = (e.clientX - dragRef.current.ox - viewport.x) / viewport.zoom;
+    const newY = (e.clientY - dragRef.current.oy - viewport.y) / viewport.zoom;
+    onUpdate({ ...checklist, x: newX, y: newY });
+  };
 
-    const handleUp = () => {
-      dragRef.current = null;
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
+  const handlePointerUp = () => {
+    dragRef.current = null;
   };
 
   const toggleItem = (itemId: string) => {
@@ -126,8 +123,12 @@ const ChecklistCard: React.FC<{
         background: checklist.bgColor,
         fontSize: `${12 * viewport.zoom}px`,
         pointerEvents: 'auto',
+        touchAction: 'none',
+        cursor: 'grab',
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
       <div className="cl-header">
         {editingTitle ? (

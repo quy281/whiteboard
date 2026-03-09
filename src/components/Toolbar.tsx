@@ -18,6 +18,7 @@ interface ToolbarProps {
 }
 
 const TOOLS: { key: Tool; icon: string; label: string }[] = [
+  { key: 'select', icon: '↖️', label: 'Chọn & Di chuyển' },
   { key: 'pen', icon: '✏️', label: 'Pen' },
   { key: 'line', icon: '╱', label: 'Line' },
   { key: 'rect', icon: '▭', label: 'Rect' },

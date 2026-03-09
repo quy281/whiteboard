@@ -82,27 +82,24 @@ const BudgetCard: React.FC<{
   const screenY = budget.y * viewport.zoom + viewport.y;
   const screenW = budget.width * viewport.zoom;
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'BUTTON') return;
-    if ((e.target as HTMLElement).closest('.bg-interactive')) return;
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
+    if (target.closest('.bg-interactive')) return;
     e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { ox: e.clientX - screenX, oy: e.clientY - screenY };
+  };
 
-    const handleMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const newX = (ev.clientX - dragRef.current.ox - viewport.x) / viewport.zoom;
-      const newY = (ev.clientY - dragRef.current.oy - viewport.y) / viewport.zoom;
-      onUpdate({ ...budget, x: newX, y: newY });
-    };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const newX = (e.clientX - dragRef.current.ox - viewport.x) / viewport.zoom;
+    const newY = (e.clientY - dragRef.current.oy - viewport.y) / viewport.zoom;
+    onUpdate({ ...budget, x: newX, y: newY });
+  };
 
-    const handleUp = () => {
-      dragRef.current = null;
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
+  const handlePointerUp = () => {
+    dragRef.current = null;
   };
 
   const removeItem = (itemId: string) => {
@@ -149,8 +146,12 @@ const BudgetCard: React.FC<{
         background: budget.bgColor,
         fontSize: `${12 * viewport.zoom}px`,
         pointerEvents: 'auto',
+        touchAction: 'none',
+        cursor: 'grab',
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
       <div className="bg-header">
         {editingTitle ? (

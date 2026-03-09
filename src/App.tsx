@@ -273,6 +273,20 @@ function App() {
     // Drawing complete — shape already added via handleShapeAdd
   }, []);
 
+  const handleShapeMove = useCallback((id: string, newX: number, newY: number) => {
+    setShapes((prev) => prev.map((s) => {
+      if (s.id !== id) return s;
+      if (s.type === 'text' || s.type === 'rect') return { ...s, x: newX, y: newY };
+      if (s.type === 'ellipse') return { ...s, cx: newX, cy: newY };
+      if (s.type === 'line') {
+        const dx = newX - s.start.x;
+        const dy = newY - s.start.y;
+        return { ...s, start: { x: newX, y: newY }, end: { x: s.end.x + dx, y: s.end.y + dy } };
+      }
+      return s;
+    }));
+  }, []);
+
   const handleCursorMove = useCallback(
     (x: number, y: number) => {
       if (awareness) {
@@ -612,9 +626,11 @@ function App() {
           onShapeAdd={handleShapeAdd}
           onShapeUpdate={handleShapeUpdate}
           onShapeComplete={handleShapeComplete}
+          onShapeMove={handleShapeMove}
           onCursorMove={handleCursorMove}
           cursors={cursors}
         />
+
 
         <NoteOverlay
           notes={notes}

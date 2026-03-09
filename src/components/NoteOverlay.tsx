@@ -46,27 +46,27 @@ const NoteCard: React.FC<{
   const screenW = note.width * viewport.zoom;
   const screenH = note.height * viewport.zoom;
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (isEditing) return;
+    // Only drag from header area, not interactive elements
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON') return;
     e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { ox: e.clientX - screenX, oy: e.clientY - screenY };
-
-    const handleMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const newX = (ev.clientX - dragRef.current.ox - viewport.x) / viewport.zoom;
-      const newY = (ev.clientY - dragRef.current.oy - viewport.y) / viewport.zoom;
-      onUpdate({ ...note, x: newX, y: newY });
-    };
-
-    const handleUp = () => {
-      dragRef.current = null;
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleUp);
-    };
-
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
   };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const newX = (e.clientX - dragRef.current.ox - viewport.x) / viewport.zoom;
+    const newY = (e.clientY - dragRef.current.oy - viewport.y) / viewport.zoom;
+    onUpdate({ ...note, x: newX, y: newY });
+  };
+
+  const handlePointerUp = () => {
+    dragRef.current = null;
+  };
+
 
   const handleBlur = () => {
     setIsEditing(false);
@@ -92,8 +92,12 @@ const NoteCard: React.FC<{
         transform: `scale(${Math.min(Math.max(viewport.zoom, 0.3), 2) / viewport.zoom * viewport.zoom > 0.3 ? 1 : 1})`,
         fontSize: `${12 * viewport.zoom}px`,
         pointerEvents: 'auto',
+        touchAction: 'none',
+        cursor: isEditing ? 'text' : 'grab',
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
       onDoubleClick={() => {
         setIsEditing(true);
         setTimeout(() => textareaRef.current?.focus(), 0);
