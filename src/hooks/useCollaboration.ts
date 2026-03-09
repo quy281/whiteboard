@@ -13,6 +13,7 @@ interface CollaborationReturn {
   localUser: UserInfo;
   roomId: string;
   isConnected: boolean;
+  isSelfChangeRef: React.MutableRefObject<boolean>;
 }
 
 export function useCollaboration(
@@ -32,6 +33,8 @@ export function useCollaboration(
     color: userProfile?.color ?? randomColor(),
   });
   const forceUpdateRef = useRef(0);
+  // Flag to skip observer when we initiated the change ourselves
+  const isSelfChangeRef = useRef(false);
 
   // Derive room id — recalculated when roomIdOverride changes
   const roomId = roomIdOverride ?? getRoomId();
@@ -58,10 +61,15 @@ export function useCollaboration(
     provider.awareness.setLocalStateField('user', localUserRef.current);
     provider.awareness.setLocalStateField('cursor', null);
 
-    // Listen for shapes changes
+    // Listen for shapes changes — only propagate REMOTE changes
     shapesArray.observe(() => {
+      // Skip if we triggered this change ourselves
+      if (isSelfChangeRef.current) return;
       const shapes = shapesArray.toArray();
-      onShapesChange(shapes);
+      // Only update if remote peer sent real data
+      if (shapes.length > 0) {
+        onShapesChange(shapes);
+      }
     });
 
     // Listen for awareness changes
@@ -116,5 +124,6 @@ export function useCollaboration(
     localUser: localUserRef.current,
     roomId,
     isConnected: connectedRef.current,
+    isSelfChangeRef,
   };
 }

@@ -100,6 +100,7 @@ function App() {
     users,
     roomId,
     isConnected,
+    isSelfChangeRef,
   } = useCollaboration(
     handleShapesChange,
     profile,
@@ -110,11 +111,21 @@ function App() {
   const shapesArrayRef = useRef(shapesArray);
   shapesArrayRef.current = shapesArray;
 
+  // ── Last board persistence ──
+  const LS_LAST_BOARD_KEY = 'wb-last-board-id';
+
+  // Auto-open last board once projects are loaded
   useEffect(() => {
-    if (shapesArray && shapesArray.length > 0 && shapes.length === 0) {
-      setShapes(shapesArray.toArray());
+    if (screen !== 'projects' || projectsLoading || boards.length === 0) return;
+    const lastBoardId = localStorage.getItem(LS_LAST_BOARD_KEY);
+    if (!lastBoardId) return;
+    const board = boards.find((b) => b.id === lastBoardId);
+    if (board && !board.password) {
+      handleOpenBoard(board);
     }
-  }, [shapesArray, shapes.length]);
+    // Only run once after projects load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectsLoading, boards.length]);
 
   // ── Auto-save board data ──
   const activeBoardRef = useRef(activeBoard);
@@ -143,21 +154,25 @@ function App() {
     setViewport(data.viewport);
     setActiveBoard(board);
     setScreen('board');
+    // Save as last opened board
+    try { localStorage.setItem(LS_LAST_BOARD_KEY, board.id); } catch { /* ignore */ }
 
-    // Sync loaded shapes into Y.js array so observe doesn't wipe them
+    // Sync loaded shapes into Y.js array (mark as self-change so observer ignores it)
     setTimeout(() => {
       const arr = shapesArrayRef.current;
       if (arr && data.shapes.length > 0) {
         const doc = arr.doc;
         if (doc) {
+          isSelfChangeRef.current = true;
           doc.transact(() => {
             arr.delete(0, arr.length);
             arr.push(data.shapes);
           });
+          isSelfChangeRef.current = false;
         }
       }
     }, 100);
-  }, [loadBoardData]);
+  }, [loadBoardData, isSelfChangeRef]);
 
   const handlePasswordSubmit = useCallback(async () => {
     if (!passwordPrompt) return;
@@ -172,24 +187,27 @@ function App() {
       setActiveBoard(passwordPrompt.board);
       setScreen('board');
       setPasswordPrompt(null);
+      try { localStorage.setItem(LS_LAST_BOARD_KEY, passwordPrompt.board.id); } catch { /* ignore */ }
 
-      // Sync loaded shapes into Y.js array
+      // Sync loaded shapes into Y.js array (mark as self-change)
       setTimeout(() => {
         const arr = shapesArrayRef.current;
         if (arr && data.shapes.length > 0) {
           const doc = arr.doc;
           if (doc) {
+            isSelfChangeRef.current = true;
             doc.transact(() => {
               arr.delete(0, arr.length);
               arr.push(data.shapes);
             });
+            isSelfChangeRef.current = false;
           }
         }
       }, 100);
     } else {
       alert('Mật khẩu không đúng!');
     }
-  }, [passwordPrompt, loadBoardData]);
+  }, [passwordPrompt, loadBoardData, isSelfChangeRef]);
 
   const handleBackToProjects = useCallback(() => {
     if (activeBoard) {
@@ -232,16 +250,19 @@ function App() {
       pushToHistory();
       // Always update local state immediately
       setShapes((prev) => [...prev, shape]);
-      // Also push to Y.js for collaboration sync
+      // Also push to Y.js for collaboration sync (mark as self so observer skips)
       if (shapesArray) {
         try {
+          isSelfChangeRef.current = true;
           shapesArray.push([shape]);
         } catch (_e) {
           // Y.js might not be connected — local state is already updated
+        } finally {
+          isSelfChangeRef.current = false;
         }
       }
     },
-    [shapesArray, pushToHistory]
+    [shapesArray, pushToHistory, isSelfChangeRef]
   );
 
   const handleShapeUpdate = useCallback((_shape: Shape) => {
@@ -266,12 +287,15 @@ function App() {
     setShapes([]);
     if (shapesArray) {
       try {
+        isSelfChangeRef.current = true;
         shapesArray.delete(0, shapesArray.length);
       } catch (_e) {
         // Y.js not connected
+      } finally {
+        isSelfChangeRef.current = false;
       }
     }
-  }, [shapesArray, pushToHistory]);
+  }, [shapesArray, pushToHistory, isSelfChangeRef]);
 
   const handleGoHome = useCallback(() => {
     setViewport({ x: 0, y: 0, zoom: 1 });
