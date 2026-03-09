@@ -6,10 +6,11 @@ interface StatusBarProps {
   roomId: string;
   users: UserInfo[];
   isConnected: boolean;
+  isOnline: boolean;
   onGoHome: () => void;
 }
 
-const StatusBar: React.FC<StatusBarProps> = ({ viewport, roomId, users, isConnected, onGoHome }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ viewport, roomId, users, isConnected: _isConnected, isOnline, onGoHome }) => {
   const zoomPercent = Math.round(viewport.zoom * 100);
   const worldX = Math.round(-viewport.x / viewport.zoom);
   const worldY = Math.round(-viewport.y / viewport.zoom);
@@ -38,11 +39,18 @@ const StatusBar: React.FC<StatusBarProps> = ({ viewport, roomId, users, isConnec
       </div>
 
       <div className="status-center">
-        <span className={`connection-dot ${isConnected ? 'connected' : ''}`} />
-        <span className="room-label">Room: {roomId.slice(0, 12)}…</span>
-        <button id="copy-link-btn" className="share-btn" onClick={copyRoomLink}>
-          🔗 Share
-        </button>
+        <span
+          className={`connection-dot ${isOnline ? 'connected' : ''}`}
+          title={isOnline ? 'Online' : 'Offline'}
+        />
+        <span className="room-label" style={{ opacity: isOnline ? 0.7 : 1, color: isOnline ? undefined : '#ef4444' }}>
+          {isOnline ? `Room: ${roomId.slice(0, 12)}…` : '⚡ Offline'}
+        </span>
+        {isOnline && (
+          <button id="copy-link-btn" className="share-btn" onClick={copyRoomLink}>
+            🔗 Share
+          </button>
+        )}
       </div>
 
       <div className="status-right">

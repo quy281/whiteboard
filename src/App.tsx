@@ -16,6 +16,7 @@ import { useCollaboration } from './hooks/useCollaboration';
 import { useUserSession } from './hooks/useUserSession';
 import { useProjects } from './hooks/useProjects';
 import { useNotifications } from './hooks/useNotifications';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import type { Shape, Tool, Viewport, NoteShape, ChecklistShape, BudgetShape, Bookmark, AppScreen, Board } from './types';
 import { generateId, screenToWorld } from './utils';
 import { NOTE_COLORS } from './components/NoteOverlay';
@@ -24,6 +25,7 @@ import './index.css';
 function App() {
   // ── Session & Profile ──
   const { user, profile, isLoggedIn, isLoading, signup, login, updateProfile, logout } = useUserSession();
+  const { isOnline } = useOnlineStatus();
 
   // ── Screen routing ──
   const [screen, setScreen] = useState<AppScreen>('login');
@@ -228,17 +230,27 @@ function App() {
   const handleShapeAdd = useCallback(
     (shape: Shape) => {
       pushToHistory();
+      // Always update local state immediately
+      setShapes((prev) => [...prev, shape]);
+      // Also push to Y.js for collaboration sync
       if (shapesArray) {
-        shapesArray.push([shape]);
-      } else {
-        setShapes((prev) => [...prev, shape]);
+        try {
+          shapesArray.push([shape]);
+        } catch (_e) {
+          // Y.js might not be connected — local state is already updated
+        }
       }
     },
     [shapesArray, pushToHistory]
   );
 
-  const handleShapeUpdate = useCallback((_shape: Shape) => { }, []);
-  const handleShapeComplete = useCallback(() => { }, []);
+  const handleShapeUpdate = useCallback((_shape: Shape) => {
+    // Shape updates during drawing are handled via canvas ref in Canvas.tsx
+    // We just need to trigger a redraw
+  }, []);
+  const handleShapeComplete = useCallback(() => {
+    // Drawing complete — shape already added via handleShapeAdd
+  }, []);
 
   const handleCursorMove = useCallback(
     (x: number, y: number) => {
@@ -251,10 +263,13 @@ function App() {
 
   const handleClear = useCallback(() => {
     pushToHistory();
+    setShapes([]);
     if (shapesArray) {
-      shapesArray.delete(0, shapesArray.length);
-    } else {
-      setShapes([]);
+      try {
+        shapesArray.delete(0, shapesArray.length);
+      } catch (_e) {
+        // Y.js not connected
+      }
     }
   }, [shapesArray, pushToHistory]);
 
@@ -624,6 +639,7 @@ function App() {
         roomId={roomId}
         users={users}
         isConnected={isConnected}
+        isOnline={isOnline}
         onGoHome={handleGoHome}
       />
 

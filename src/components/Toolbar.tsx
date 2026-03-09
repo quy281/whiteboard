@@ -54,16 +54,21 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const [showColors, setShowColors] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
 
-  // Close color popup when clicking outside
+  // Close color popup when clicking/touching outside
   useEffect(() => {
     if (!showColors) return;
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (e: PointerEvent | TouchEvent) => {
       if (colorRef.current && !colorRef.current.contains(e.target as Node)) {
         setShowColors(false);
       }
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    // Use pointerdown for unified mouse+touch support
+    document.addEventListener('pointerdown', handleClick);
+    document.addEventListener('touchstart', handleClick);
+    return () => {
+      document.removeEventListener('pointerdown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+    };
   }, [showColors]);
 
   if (position === 'top') {
@@ -101,6 +106,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
       <div className="color-picker-wrapper" ref={colorRef}>
         <button
           className="color-swatch-btn"
+          onPointerDown={(e) => { e.stopPropagation(); }}
+          onTouchStart={(e) => { e.stopPropagation(); }}
           onClick={() => setShowColors(!showColors)}
           title="Chọn màu"
         >

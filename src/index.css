@@ -221,11 +221,19 @@ body,
   background: white; border: 1px solid var(--border-color);
   border-radius: 12px; padding: 10px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-  z-index: 50;
+  z-index: 100;
 }
 .color-popup-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  gap: 8px;
+}
+.color-btn-popup {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* ── Back Button ────────────────────────────────────────── */
